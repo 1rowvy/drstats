@@ -141,3 +141,12 @@ func (c *Clock) isPaused(t uint32) bool {
 	}
 	return false
 }
+
+// NewClock rebuilds a clock from a stored start tick and pause intervals.
+func NewClock(startTick uint32, pauses [][2]uint32) *Clock {
+	c := &Clock{startTick: startTick, started: true}
+	for _, p := range pauses {
+		c.pauses = append(c.pauses, pause{p[0], p[1]})
+	}
+	return c
+}

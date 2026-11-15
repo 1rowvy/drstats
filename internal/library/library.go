@@ -47,6 +47,8 @@ type Progress struct {
 	Done    int `json:"done"`
 	Failed  int `json:"failed"`
 	Stale   int `json:"stale"` // parsed by an older parser version
+	// AvgParseMS is the mean parse time of replays parsed by the current parser.
+	AvgParseMS float64 `json:"avg_parse_ms"`
 }
 
 // ParseFunc parses one replay file, reporting the read fraction (0..1) to
@@ -234,6 +236,9 @@ func (l *Library) work(id int64) {
 		l.fail(id, "save: "+err.Error())
 		return
 	}
+	if err := l.st.SetParseTime(id, time.Since(started).Milliseconds()); err != nil {
+		slog.Warn("set parse time", "replay", id, "err", err)
+	}
 	slog.Info("replay parsed", "path", r.Path, "match", matchID, "took", time.Since(started).Round(time.Millisecond))
 	l.emit(EventReplay, ReplayEvent{ReplayID: id, Status: store.StatusDone, MatchID: matchID})
 }
@@ -253,8 +258,9 @@ func (l *Library) emitProgress() {
 func (l *Library) Progress() Progress {
 	c, _ := l.st.StatusCounts()
 	stale, _ := l.st.StaleCount(parser.Version)
+	avg, _ := l.st.AvgParseMS(parser.Version)
 	return Progress{Pending: c[store.StatusPending], Parsing: c[store.StatusParsing],
-		Done: c[store.StatusDone], Failed: c[store.StatusFailed], Stale: stale}
+		Done: c[store.StatusDone], Failed: c[store.StatusFailed], Stale: stale, AvgParseMS: avg}
 }
 
 // IsReplay reports whether a path looks like a Dota 2 replay file.

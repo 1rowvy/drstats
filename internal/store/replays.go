@@ -118,6 +118,20 @@ func (s *Store) StatusCounts() (map[string]int, error) {
 	return out, rows.Err()
 }
 
+// SetParseTime records how long the last successful parse of a replay took.
+func (s *Store) SetParseTime(id int64, ms int64) error {
+	_, err := s.db.Exec(`UPDATE replays SET parse_ms = ? WHERE id = ?`, ms, id)
+	return err
+}
+
+// AvgParseMS is the mean parse time over replays parsed by the given parser
+// version (0 when none has been timed yet).
+func (s *Store) AvgParseMS(version int) (float64, error) {
+	var v float64
+	err := s.db.QueryRow(`SELECT COALESCE(AVG(parse_ms), 0) FROM replays WHERE status = 'done' AND parse_ms > 0 AND parser_version = ?`, version).Scan(&v)
+	return v, err
+}
+
 // DeleteReplay forgets a replay (and its match). The file itself is untouched.
 func (s *Store) DeleteReplay(id int64) error {
 	_, err := s.db.Exec(`DELETE FROM replays WHERE id = ?`, id)

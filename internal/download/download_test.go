@@ -51,7 +51,9 @@ func TestFetch(t *testing.T) {
 	}))
 	defer srv.Close()
 	OpenDotaURL = srv.URL + "/api/matches/"
-	ReplayURL = func(cluster int, id uint64, salt int64) string { return fmt.Sprintf("%s/570/%d_%d.dem.bz2", srv.URL, id, salt) }
+	ReplayURL = func(cluster int, id uint64, salt int64) string {
+		return fmt.Sprintf("%s/570/%d_%d.dem.bz2", srv.URL, id, salt)
+	}
 
 	var stages []string
 	c := New(func(p Progress) { stages = append(stages, p.Stage) })

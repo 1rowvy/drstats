@@ -1,8 +1,10 @@
 package parser
 
+import "strings"
+
 // Version of the extraction logic. Bump it whenever what Parse extracts (or how)
 // changes, so stored matches can be detected as stale and re-parsed.
-const Version = 2
+const Version = 3
 
 // SeriesStep is the sampling interval of the per-player time series, game seconds.
 const SeriesStep = 5.0
@@ -38,6 +40,10 @@ type Match struct {
 	Runes     []Rune       `json:"runes"`
 	Stacks    []Mark       `json:"stacks"`
 	Buybacks  []Mark       `json:"buybacks"`
+	// v3: building / Roshan kills, hero-to-hero damage in time buckets, pauses.
+	Objectives []Objective    `json:"objectives"`
+	HeroDamage []DamageBucket `json:"hero_damage"`
+	Pauses     [][2]uint32    `json:"pauses"` // [from, to) replay ticks, for game time -> tick
 }
 
 // Player is a final scoreboard line.
@@ -215,4 +221,43 @@ func AccountFromSteam64(s uint64) uint32 {
 		return 0
 	}
 	return uint32(s - Steam64Base)
+}
+
+// Objective is a destroyed building or a Roshan kill.
+type Objective struct {
+	T         float64 `json:"t"`
+	Kind      string  `json:"kind"` // tower, barracks, fort, roshan
+	Key       string  `json:"key"`  // npc name, e.g. npc_dota_goodguys_tower1_mid
+	Team      int     `json:"team"` // team that lost the building (0 for Roshan)
+	KillerPID int     `json:"killer"`
+	Killer    string  `json:"killer_name"`
+}
+
+// DamageBucketStep is the time bucket of DamageBucket, game seconds.
+const DamageBucketStep = 5.0
+
+// DamageBucket sums hero-to-hero damage (illusions and summons count for their
+// owner, illusion targets are skipped) by attacker, target and inflictor
+// within one DamageBucketStep-second window starting at T.
+type DamageBucket struct {
+	T         float64 `json:"t"`
+	PlayerID  int     `json:"pid"`
+	Target    int     `json:"target"`
+	Inflictor string  `json:"inflictor"` // "" = autoattack
+	Amount    int     `json:"amount"`
+}
+
+// ObjectiveKind classifies a killed unit; "" when it is not an objective.
+func ObjectiveKind(npc string) string {
+	switch {
+	case strings.HasPrefix(npc, "npc_dota_roshan"):
+		return "roshan"
+	case strings.Contains(npc, "_tower"):
+		return "tower"
+	case strings.Contains(npc, "_rax_"):
+		return "barracks"
+	case strings.HasSuffix(npc, "_fort"):
+		return "fort"
+	}
+	return ""
 }

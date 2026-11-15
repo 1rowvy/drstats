@@ -115,6 +115,17 @@ func (x *extractor) onDeathLog(m *dota.CMsgDOTACombatLogEntry) {
 		})
 		return
 	}
+	if kind := ObjectiveKind(target); kind != "" {
+		team := int(m.GetTargetTeam())
+		if kind == "roshan" {
+			team = 0
+		}
+		x.rawObjectives = append(x.rawObjectives, rawObjective{
+			tick: x.p.Tick, kind: kind, target: target, team: team,
+			attacker: x.name(m.GetAttackerName()), source: x.name(m.GetDamageSourceName()),
+		})
+		return
+	}
 	if !m.GetIsTargetHero() || m.GetIsTargetIllusion() || m.GetWillReincarnate() {
 		return
 	}
@@ -208,6 +219,13 @@ func (x *extractor) buildCombat(pidByHero map[string]int) {
 		lastHit[k] = t
 		x.m.Hits = append(x.m.Hits, Hit{T: round2(t), PlayerID: pid, Ability: ability})
 	}
+	// Hero-to-hero damage in time buckets (fight breakdowns).
+	type bucketKey struct {
+		t           float64
+		pid, target int
+		inflictor   string
+	}
+	buckets := map[bucketKey]int{}
 	// other side of an entry, as seen from the player.
 	targetName := func(e rawEntry) string {
 		switch {
@@ -227,6 +245,12 @@ func (x *extractor) buildCombat(pidByHero map[string]int) {
 				bump(dmgOut, pid, e.tick, e.value)
 				if e.tgtHero && !e.tgtIllusion && e.inflictor != "" {
 					hit(pid, e.inflictor, e.tick)
+				}
+				if e.tgtHero && !e.tgtIllusion {
+					if tgt, ok := pidByHero[e.target]; ok {
+						bt := math.Floor(x.clock.GameTime(e.tick)/DamageBucketStep) * DamageBucketStep
+						buckets[bucketKey{bt, pid, tgt, e.inflictor}] += e.value
+					}
 				}
 			}
 			if e.tgtHero && !e.tgtIllusion {
@@ -282,6 +306,24 @@ func (x *extractor) buildCombat(pidByHero map[string]int) {
 		return a.Amount > b.Amount
 	})
 	sort.SliceStable(x.m.Hits, func(i, j int) bool { return x.m.Hits[i].T < x.m.Hits[j].T })
+	for k, v := range buckets {
+		if v > 0 {
+			x.m.HeroDamage = append(x.m.HeroDamage, DamageBucket{T: k.t, PlayerID: k.pid, Target: k.target, Inflictor: k.inflictor, Amount: v})
+		}
+	}
+	sort.Slice(x.m.HeroDamage, func(i, j int) bool {
+		a, b := x.m.HeroDamage[i], x.m.HeroDamage[j]
+		if a.T != b.T {
+			return a.T < b.T
+		}
+		if a.PlayerID != b.PlayerID {
+			return a.PlayerID < b.PlayerID
+		}
+		if a.Target != b.Target {
+			return a.Target < b.Target
+		}
+		return a.Inflictor < b.Inflictor
+	})
 
 	// Fill the cumulative damage columns of the series.
 	at := func(steps []tickValue, t float64) int {
@@ -295,6 +337,24 @@ func (x *extractor) buildCombat(pidByHero map[string]int) {
 		s := &x.m.Series[i]
 		s.DmgOut = at(dmgOut[s.PlayerID], s.T)
 		s.DmgIn = at(dmgIn[s.PlayerID], s.T)
+	}
+}
+
+type rawObjective struct {
+	tick             uint32
+	kind, target     string
+	team             int
+	attacker, source string
+}
+
+// buildObjectives resolves building / Roshan kills to players.
+func (x *extractor) buildObjectives(pidByHero map[string]int) {
+	for _, o := range x.rawObjectives {
+		out := Objective{T: round2(x.clock.GameTime(o.tick)), Kind: o.kind, Key: o.target, Team: o.team, KillerPID: -1, Killer: o.attacker}
+		if k, ok := owner(pidByHero, o.attacker, o.source); ok {
+			out.KillerPID = k
+		}
+		x.m.Objectives = append(x.m.Objectives, out)
 	}
 }
 

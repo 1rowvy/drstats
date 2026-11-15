@@ -42,6 +42,10 @@ func sampleMatch() *parser.Match {
 		Runes:    []parser.Rune{{T: 0, PlayerID: 0, Type: parser.RuneBounty, Bottled: true}},
 		Stacks:   []parser.Mark{{T: 70, PlayerID: 5}},
 		Buybacks: []parser.Mark{{T: 210, PlayerID: 0}},
+		Objectives: []parser.Objective{{T: 300, Kind: "tower", Key: "npc_dota_badguys_tower1_mid", Team: 3, KillerPID: 0,
+			Killer: "npc_dota_hero_antimage"}},
+		HeroDamage: []parser.DamageBucket{{T: 95, PlayerID: 0, Target: 5, Inflictor: "", Amount: 240}},
+		Pauses:     [][2]uint32{{4000, 4300}},
 	}
 }
 
@@ -100,7 +104,8 @@ func TestReplayLifecycle(t *testing.T) {
 	for name, pair := range map[string][2]any{
 		"purchases": {mm.Purchases, want.Purchases}, "casts": {mm.Casts, want.Casts}, "hits": {mm.Hits, want.Hits},
 		"combat": {mm.Combat, want.Combat}, "wards": {mm.Wards, want.Wards}, "runes": {mm.Runes, want.Runes},
-		"stacks": {mm.Stacks, want.Stacks}, "buybacks": {mm.Buybacks, want.Buybacks}, "players": {mm.Players, want.Players},
+		"stacks": {mm.Stacks, want.Stacks}, "objectives": {mm.Objectives, want.Objectives},
+		"hero_damage": {mm.HeroDamage, want.HeroDamage}, "pauses": {mm.Pauses, want.Pauses}, "buybacks": {mm.Buybacks, want.Buybacks}, "players": {mm.Players, want.Players},
 	} {
 		if !reflect.DeepEqual(pair[0], pair[1]) {
 			t.Errorf("%s round trip:\n got %+v\nwant %+v", name, pair[0], pair[1])

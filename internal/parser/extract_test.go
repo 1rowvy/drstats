@@ -171,3 +171,46 @@ func loadOpenDota(t *testing.T, replay string) *openDota {
 	}
 	return &od
 }
+
+func TestObjectivesAndHeroDamage(t *testing.T) {
+	path := testReplay(t)
+	m, err := ParseFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// OpenDota (testdata/*.opendota.json) lists 20 building kills and one Roshan kill at 26:41.
+	kinds := map[string]int{}
+	for _, o := range m.Objectives {
+		kinds[o.Kind]++
+	}
+	if b := kinds["tower"] + kinds["barracks"] + kinds["fort"]; b != 20 || kinds["roshan"] != 1 {
+		t.Errorf("objectives: %v", kinds)
+	}
+	for _, o := range m.Objectives {
+		if o.Kind == "roshan" && (o.T < 1595 || o.T > 1607) {
+			t.Errorf("roshan at %v", o.T)
+		}
+	}
+	// Bucketed hero damage must add up to the dealt-to-heroes combat aggregate.
+	byPID := map[int]int{}
+	for _, b := range m.HeroDamage {
+		byPID[b.PlayerID] += b.Amount
+	}
+	agg := map[int]int{}
+	for _, c := range m.Combat {
+		if c.Kind == DmgOut && strings.HasPrefix(c.Other, "npc_dota_hero_") {
+			agg[c.PlayerID] += c.Amount
+		}
+	}
+	for pid, v := range agg {
+		if byPID[pid] != v {
+			t.Errorf("player %d: buckets %d, aggregate %d", pid, byPID[pid], v)
+		}
+	}
+	if len(m.Pauses) > 0 {
+		c := NewClock(m.StartTick, m.Pauses)
+		if got := c.GameTime(c.Tick(900)); got < 899.9 || got > 900.1 {
+			t.Errorf("clock round trip: %v", got)
+		}
+	}
+}

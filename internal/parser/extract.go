@@ -88,6 +88,7 @@ type extractor struct {
 	nextSample      float64
 	lastLife        map[int]int // pid -> lifeState
 	rawDeaths       []rawDeath
+	rawObjectives   []rawObjective
 	posDeaths       []posDeath
 	fileHeroBySteam map[uint64]string
 	fileHeroOrdered []string
@@ -337,6 +338,7 @@ func (x *extractor) fillEconomy(pid int, fn func(de *manta.Entity, prefix string
 func (x *extractor) finish() {
 	x.clock.Close(x.p.Tick)
 	x.m.StartTick = x.clock.StartTick()
+	x.m.Pauses = x.clock.Pauses()
 	end := x.postGame
 	if end == 0 {
 		end = x.p.Tick
@@ -407,6 +409,7 @@ func (x *extractor) finish() {
 	x.buildDeaths(pidByHero)
 	x.buildCombat(pidByHero)
 	x.buildWards(pidByHero, pidByHandle)
+	x.buildObjectives(pidByHero)
 
 	gt := func(tick uint32) float64 { return round2(x.clock.GameTime(tick)) }
 	for _, r := range x.runes {

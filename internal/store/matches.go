@@ -13,15 +13,29 @@ import (
 
 // Event types stored in the events table.
 const (
-	EventDeath    = "death"    // player_id victim, other_id killer
-	EventPurchase = "purchase" // key item
-	EventCast     = "cast"     // key ability / item_*
-	EventHit      = "hit"      // key ability / item_*
-	EventWard     = "ward"     // key obs|sentry, other_id killer, x/y
-	EventRune     = "rune"     // key rune type
-	EventStack    = "stack"
-	EventBuyback  = "buyback"
+	EventDeath     = "death"    // player_id victim, other_id killer
+	EventPurchase  = "purchase" // key item
+	EventCast      = "cast"     // key ability / item_*
+	EventHit       = "hit"      // key ability / item_*
+	EventWard      = "ward"     // key obs|sentry, other_id killer, x/y
+	EventRune      = "rune"     // key rune type
+	EventStack     = "stack"
+	EventBuyback   = "buyback"
+	EventObjective = "objective" // key npc name, other_id killer
+	EventHeroDmg   = "hdmg"      // player_id attacker, other_id target, key inflictor; 5 s bucket at t
 )
+
+// ObjectiveData is the JSON payload of an objective event.
+type ObjectiveData struct {
+	Kind   string `json:"kind"`
+	Team   int    `json:"team"`
+	Killer string `json:"killer_name,omitempty"`
+}
+
+// AmountData is the JSON payload of a hero damage bucket.
+type AmountData struct {
+	V int `json:"v"`
+}
 
 // DeathData is the JSON payload of a death event.
 type DeathData struct {
@@ -120,9 +134,13 @@ func (s *Store) SaveMatch(replayID int64, m *parser.Match) (matchID int64, err e
 	if _, err = tx.Exec(`DELETE FROM matches WHERE match_id = ? OR replay_id = ?`, matchID, replayID); err != nil {
 		return 0, err
 	}
-	if _, err = tx.Exec(`INSERT INTO matches (match_id, replay_id, game_build, game_mode, lobby_type, winner, duration, end_time, start_tick)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		matchID, replayID, m.GameBuild, m.GameMode, m.LobbyType, m.Winner, m.Duration, m.EndTime, m.StartTick); err != nil {
+	pauses, _ := json.Marshal(m.Pauses)
+	if m.Pauses == nil {
+		pauses = []byte("[]")
+	}
+	if _, err = tx.Exec(`INSERT INTO matches (match_id, replay_id, game_build, game_mode, lobby_type, winner, duration, end_time, start_tick, pauses)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		matchID, replayID, m.GameBuild, m.GameMode, m.LobbyType, m.Winner, m.Duration, m.EndTime, m.StartTick, string(pauses)); err != nil {
 		return 0, err
 	}
 
@@ -215,6 +233,18 @@ func (s *Store) SaveMatch(replayID int64, m *parser.Match) (matchID int64, err e
 	}
 	for _, mk := range m.Buybacks {
 		if err = event(mk.T, EventBuyback, mk.PlayerID, -1, nil, nil, "", nil); err != nil {
+			return 0, err
+		}
+	}
+
+	for _, o := range m.Objectives {
+		data := ObjectiveData{Kind: o.Kind, Team: o.Team, Killer: o.Killer}
+		if err = event(o.T, EventObjective, -1, o.KillerPID, nil, nil, o.Key, data); err != nil {
+			return 0, err
+		}
+	}
+	for _, b := range m.HeroDamage {
+		if err = event(b.T, EventHeroDmg, b.PlayerID, b.Target, nil, nil, b.Inflictor, AmountData{V: b.Amount}); err != nil {
 			return 0, err
 		}
 	}
@@ -374,22 +404,27 @@ type MatchMeta struct {
 	Winner    int     `json:"winner"`
 	Duration  float64 `json:"duration"`
 	EndTime   int64   `json:"end_time"`
+	StartTick uint32  `json:"start_tick"`
 }
 
 // Match loads a stored match: meta and everything parsed (players, series,
 // events, combat aggregates) as a parser.Match.
 func (s *Store) Match(matchID int64) (*MatchMeta, *parser.Match, error) {
 	var mm MatchMeta
-	err := s.db.QueryRow(`SELECT m.match_id, m.replay_id, r.path, m.game_build, m.game_mode, m.lobby_type, m.winner, m.duration, m.end_time
+	var pauses string
+	err := s.db.QueryRow(`SELECT m.match_id, m.replay_id, r.path, m.game_build, m.game_mode, m.lobby_type, m.winner, m.duration, m.end_time,
+		m.start_tick, m.pauses
 		FROM matches m JOIN replays r ON r.id = m.replay_id WHERE m.match_id = ?`, matchID).
-		Scan(&mm.MatchID, &mm.ReplayID, &mm.Path, &mm.GameBuild, &mm.GameMode, &mm.LobbyType, &mm.Winner, &mm.Duration, &mm.EndTime)
+		Scan(&mm.MatchID, &mm.ReplayID, &mm.Path, &mm.GameBuild, &mm.GameMode, &mm.LobbyType, &mm.Winner, &mm.Duration, &mm.EndTime,
+			&mm.StartTick, &pauses)
 	if err != nil {
 		return nil, nil, fmt.Errorf("match %d: %w", matchID, err)
 	}
 	m := &parser.Match{
 		MatchID: uint64(max(0, mm.MatchID)), GameBuild: uint32(mm.GameBuild), GameMode: mm.GameMode, LobbyType: mm.LobbyType,
-		Winner: mm.Winner, Duration: mm.Duration, EndTime: mm.EndTime,
+		Winner: mm.Winner, Duration: mm.Duration, EndTime: mm.EndTime, StartTick: mm.StartTick,
 	}
+	_ = json.Unmarshal([]byte(pauses), &m.Pauses)
 	if m.Players, err = s.players(`match_id = ?`, matchID); err != nil {
 		return nil, nil, err
 	}
@@ -491,6 +526,14 @@ func (s *Store) events(m *parser.Match, matchID int64) error {
 			m.Stacks = append(m.Stacks, parser.Mark{T: t, PlayerID: pid})
 		case EventBuyback:
 			m.Buybacks = append(m.Buybacks, parser.Mark{T: t, PlayerID: pid})
+		case EventObjective:
+			var od ObjectiveData
+			_ = json.Unmarshal([]byte(data), &od)
+			m.Objectives = append(m.Objectives, parser.Objective{T: t, Kind: od.Kind, Key: key, Team: od.Team, KillerPID: other, Killer: od.Killer})
+		case EventHeroDmg:
+			var ad AmountData
+			_ = json.Unmarshal([]byte(data), &ad)
+			m.HeroDamage = append(m.HeroDamage, parser.DamageBucket{T: t, PlayerID: pid, Target: other, Inflictor: key, Amount: ad.V})
 		}
 	}
 	return rows.Err()
