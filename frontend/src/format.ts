@@ -152,8 +152,21 @@ export function modeShort(mode: number, lobby: number): string {
   return GAME_MODES[mode] ?? `Mode ${mode}`;
 }
 
-/** Guessed role from the laning-stage lane and early farm (LH@10). */
-export function roleName(lane: string, team: number, lh10?: number | null): string {
+export const POSITIONS: Record<number, string> = { 1: "Керри", 2: "Мид", 3: "Оффлейн", 4: "Саппорт 4", 5: "Саппорт 5" };
+
+const MEDALS = ["", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
+
+/** OpenDota rank tier (54) as "Legend 4". */
+export function rankName(tier?: number): string {
+  if (!tier) return "";
+  const m = MEDALS[Math.floor(tier / 10)] ?? "";
+  const star = tier % 10;
+  return m && star && m !== "Immortal" ? `${m} ${star}` : m;
+}
+
+/** Role: OpenDota's estimated position when known, else guessed from lane and LH@10. */
+export function roleName(lane: string, team: number, lh10?: number | null, position?: number): string {
+  if (position && POSITIONS[position]) return POSITIONS[position];
   if (lane === "mid") return "Мид";
   if (lane === "jungle") return "Лес";
   if (lane === "roam") return "Роумер";

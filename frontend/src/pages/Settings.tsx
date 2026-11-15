@@ -49,6 +49,15 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
     }
   };
 
+  const fetchOD = async () => {
+    try {
+      const n = await Api.FetchOpenDota();
+      toast(n ? `В очередь OpenDota: ${n}` : "Все матчи уже подтянуты");
+    } catch (e: any) {
+      toast(String(e?.message ?? e), true);
+    }
+  };
+
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -116,6 +125,15 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
           <small>Показывается в списке матчей и на вкладке «Обзор».</small>
         </label>
 
+        <h2>OpenDota</h2>
+        <label className="row" style={{ flexDirection: "row", alignItems: "center" }}>
+          <input type="checkbox" checked={!s.opendota_off} onChange={(e) => set("opendota_off", !e.target.checked)} />
+          <span>Подтягивать данные матча с OpenDota</span>
+        </label>
+        <small style={{ display: "block", marginTop: -8, marginBottom: 16 }}>
+          Позиция 1–5, ранги, пати и перцентили по герою. Реплей остаётся основным источником; без сети всё считается по нему.
+        </small>
+
         <div className="row">
           <button className="primary" onClick={save} disabled={saving}>{saving ? "Сохраняю…" : "Сохранить"}</button>
         </div>
@@ -123,6 +141,9 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
 
       <div className="card form">
         <h2>Данные</h2>
+        <div className="row">
+          <button onClick={fetchOD} disabled={!!s.opendota_off}>Подтянуть матчи с OpenDota</button>
+        </div>
         <div className="row">
           <button onClick={refresh} disabled={refreshing}>{refreshing ? "Загружаю…" : "Обновить константы OpenDota"}</button>
           <span className="dim">

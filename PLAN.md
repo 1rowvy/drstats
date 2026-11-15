@@ -37,6 +37,7 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | Role label | guessed from lane + LH@10: mid → Мид, safe lane ≥25 LH → Керри, off lane ≥18 LH → Оффлейн, otherwise Саппорт; jungle/roam | No role data in replays. |
 | Death "no vision" | no allied observer alive within 1400 units of the death spot | Observer day vision radius; sentries ignored. |
 | Map zones | `stats.Region`: base / river (top·mid·bot) / lane + side / jungle + side, coarse geometry; used for deaths, idle periods, hero death top-zones | Human-readable locations; no tower-level precision. |
+| OpenDota match extras | after parsing, `/matches/{id}` is fetched in the background (1 req/1.1 s) and `position_est`, `rank_tier`, `party_size`, `benchmarks` are stored in `od_players` (keyed by match + hero, no FK so re-parse keeps them). Role = OpenDota position when known, else own lane heuristic. Unparsed / failed fetches retry after 6 h; switch-off in settings | Owner: "тянуть и оттуда и оттуда" — replay stays the primary source, OpenDota fills what a replay can't know. |
 | Per-replay parse progress | bytes read from the .dem, `library:parsing` event, ≥2% steps | Cheap and monotonic; no manta hook needed. |
 
 ## Phases
@@ -87,3 +88,4 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Deaths tab: numbered map markers, movement layer, death cards with region, killers, killing blow, vision and buyback tags
 - [x] Hero page: hero tabs, recent-vs-all cards, worst habits with explanations, GPM last 20, winrate by time of day, death zones, key item timings (avg / best / count)
 - [x] Setting: LH@10 goal
+- [x] OpenDota extras: estimated position (role), rank, party, benchmark percentiles on the match page; settings toggle and "fetch now" button

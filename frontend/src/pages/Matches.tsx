@@ -182,7 +182,7 @@ function Row({ r, parsing, onOpen, onError }: {
   return (
     <tr className={done ? "clickable" : ""} onClick={() => done && onOpen(r.match_id)}>
       <td>
-        {r.found ? <HeroName npc={r.hero_name} sub={roleName(r.lane, r.team, r.lh10) || " "} />
+        {r.found ? <HeroName npc={r.hero_name} sub={roleName(r.lane, r.team, r.lh10, r.position) || " "} />
           : done ? <span className="dim">не мой матч <span className="faint mono small">{r.match_id}</span></span>
           : <span className="dim" title={r.path}>{baseName(r.path)}</span>}
       </td>

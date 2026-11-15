@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Api, MatchView, PlayerView } from "../api";
-import { clock, duration, GOLD_SOURCES, laneName, modeShort, num, pct, RADIANT, DIRE, regionName, relDate, roleName, teamName, thousands } from "../format";
+import { Events } from "@wailsio/runtime";
+import { Api, AppEvents, MatchView, PlayerView } from "../api";
+import { clock, duration, GOLD_SOURCES, laneName, modeShort, num, pct, RADIANT, DIRE, rankName, regionName, relDate, roleName, teamName, thousands } from "../format";
 import { useNames } from "../names";
 import { HeroBadge, HeroName } from "../components/HeroBadge";
 import { Icon } from "../components/Icon";
@@ -29,12 +30,17 @@ export function MatchPage({ matchID, lh10Goal, onBack, onHero }: {
   const [view, setView] = useState<MatchView | null>(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
+  const [odTick, setOdTick] = useState(0);
 
   useEffect(() => {
     Api.Match(matchID, focus)
       .then((v) => { setView(v); setError(""); })
       .catch((e) => setError(String(e?.message ?? e)));
-  }, [matchID, focus]);
+  }, [matchID, focus, odTick]);
+  // OpenDota extras arrive in the background: reload when they do.
+  useEffect(() => Events.On(AppEvents.OpendotaUpdated, (e) => {
+    if (e.data?.match_id === matchID) setOdTick((t) => t + 1);
+  }), [matchID]);
 
   const backBtn = <button className="back" onClick={onBack}><Icon name="back" size={14} /> Все матчи</button>;
   if (error) return <div>{backBtn}<div className="notice bad" style={{ marginTop: 14 }}>{error}</div></div>;
@@ -45,7 +51,7 @@ export function MatchPage({ matchID, lh10Goal, onBack, onHero }: {
   const opp = players.find((p) => p.player_id === view.opponent);
   const won = me ? me.team === view.meta.winner : null;
   const lh10 = view.laning?.snaps?.find((s) => s.t === 600)?.lh;
-  const role = me ? roleName(view.laning.lane, me.team, lh10) : "";
+  const role = me ? roleName(view.laning.lane, me.team, lh10, me.od?.position) : "";
   const sub = [
     modeShort(view.meta.game_mode, view.meta.lobby_type),
     me && (role || opp) ? [role, opp ? `против ${names.hero(opp.hero_name)}` : ""].filter(Boolean).join(" ") : "",
@@ -65,7 +71,12 @@ export function MatchPage({ matchID, lh10Goal, onBack, onHero }: {
               : names.hero(me.hero_name)) : `Матч ${view.meta.match_id}`}
             {won !== null && (won ? <span className="pill win">Победа</span> : <span className="pill loss">Поражение</span>)}
           </h1>
-          <div className="sub">{sub}</div>
+          <div className="sub">
+            {sub}
+            {me?.od?.rank_tier ? <> · {rankName(me.od.rank_tier)}</> : null}
+            {me?.od && me.od.party_size > 1 ? <> · пати из {me.od.party_size}</> : null}
+            <ODMark status={view.od_status} />
+          </div>
           {me && !view.is_me && <div className="dim small">Смотришь за другого игрока ({me.name || "без имени"}).</div>}
         </div>
       </div>
@@ -90,15 +101,31 @@ export function MatchPage({ matchID, lh10Goal, onBack, onHero }: {
   );
 }
 
+function ODMark({ status }: { status: string }) {
+  const text: Record<string, string> = {
+    "": "OpenDota: ещё не запрашивали", ok: "Роль и перцентили — с OpenDota", unparsed: "OpenDota ещё не разобрала матч — повторю позже",
+    notfound: "OpenDota не знает этот матч", error: "OpenDota недоступна — повторю позже",
+  };
+  return <span className={`od-mark ${status === "ok" ? "ok" : ""}`} title={text[status] ?? status}>OD</span>;
+}
+
+/** OpenDota benchmark as "лучше 64% на герое". */
+function Bench({ p, k }: { p: PlayerView; k: string }) {
+  const b = p.od?.benchmarks?.[k];
+  if (!b) return null;
+  const v = Math.round(b.pct * 100);
+  return <span className={v >= 50 ? "up" : "down"} title="Перцентиль среди недавних игр на этом герое (OpenDota)">лучше {v}% на герое</span>;
+}
+
 function HeadStats({ view, me }: { view: MatchView; me: PlayerView }) {
   return (
     <div className="stat-grid">
-      <Stat label="K / D / A" value={`${me.kills}/${me.deaths}/${me.assists}`} />
+      <Stat label="K / D / A" value={`${me.kills}/${me.deaths}/${me.assists}`} sub={<Bench p={me} k="kills_per_min" />} />
       <Stat label="Нетворс" value={thousands(me.net_worth)} />
-      <Stat label="GPM" value={me.gpm} />
-      <Stat label="XPM" value={me.xpm} />
+      <Stat label="GPM" value={me.gpm} sub={<Bench p={me} k="gold_per_min" />} />
+      <Stat label="XPM" value={me.xpm} sub={<Bench p={me} k="xp_per_min" />} />
       <Stat label="Участие" value={pct(view.fights.kp)} />
-      <Stat label="Урон по героям" value={thousands(me.hero_damage)} />
+      <Stat label="Урон по героям" value={thousands(me.hero_damage)} sub={<Bench p={me} k="hero_damage_per_min" />} />
     </div>
   );
 }
@@ -326,7 +353,10 @@ function Scoreboard({ view, onPick }: { view: MatchView; onPick: (pid: number) =
               {players.filter((p) => p.team === team).map((p) => (
                 <tr key={p.player_id} className={`clickable ${p.player_id === view.focus ? "focus" : ""}`} onClick={() => onPick(p.player_id)}>
                   <td><HeroName npc={p.hero_name} /> {p.player_id === view.opponent && <span title="лайн-оппонент" className="faint">⚔</span>}</td>
-                  <td className="dim">{p.name || "—"}</td>
+                  <td className="dim" title={[rankName(p.od?.rank_tier), p.od && p.od.party_size > 1 ? `пати из ${p.od.party_size}` : ""].filter(Boolean).join(" · ")}>
+                    {p.name || "—"}
+                    {p.od?.position ? <span className="faint small"> · поз. {p.od.position}</span> : null}
+                  </td>
                   <td className="num">{p.level}</td>
                   <td className="num">{p.kills}</td>
                   <td className="num">{p.deaths}</td>

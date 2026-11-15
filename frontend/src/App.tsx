@@ -87,6 +87,7 @@ function Shell() {
         setParsing((p) => ({ ...p, [ev.replay_id]: ev.fraction }));
       }),
       Events.On(AppEvents.LibraryProgress, (e) => setProgress(e.data)),
+      Events.On(AppEvents.OpendotaUpdated, reloadSoon),
       Events.On(AppEvents.LibraryImported, (e) => {
         const r = e.data;
         if (r.error) showToast(r.error, true);

@@ -2,8 +2,9 @@
 
 Personal desktop app that parses Dota 2 replays (`.dem`) and shows detailed stats
 for one player (the owner). Single user, fully local: no servers, accounts or cloud
-(the only network calls are OpenDota constants/replay download and the GitHub
-Releases update check).
+(the only network calls are OpenDota constants/replay download, OpenDota per-match
+extras — positions, ranks, benchmarks; can be switched off in settings — and the
+GitHub Releases update check).
 
 The full task spec lives in `PLAN.md` (phases, checklist, decisions). Keep it up to date:
 tick items as they land and record any decision that deviates from the spec.
@@ -34,6 +35,8 @@ internal/stats/    aggregates over stored matches
 internal/library/  folder scan, import, background parse worker pool
 internal/settings/ settings model and defaults
 internal/constants/ OpenDota constants cache
+internal/opendota/ OpenDota match extras client (no store imports)
+internal/enrich/   background OpenDota fetch queue -> store
 app.go / main.go   Wails services & bindings
 frontend/          React app
 testdata/          local replays (gitignored); tests skip when absent
