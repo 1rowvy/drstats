@@ -45,6 +45,8 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | Match grade | weighted percentile (KDA 1.5, GPM 1.2, XPM .8, hero dmg/min 1, KP 1, deaths 1 (lower better), LH@10 .8, tower dmg .5) against the player's other matches — same hero when ≥8 others, else all; ×85 + 15 for a win; letters A+…D; none with <5 reference matches | Personal, needs no external data. |
 | Moments / verdict | generated on the client from fights, deaths, objectives, item timings, hit rates, idle time, OpenDota benchmarks | Texts are UI; backend gives structured data. |
 | OpenDota match history | `/players/{account}/matches?significant=0` (projected basic fields: hero, result, K/D/A, LH/DN, GPM/XPM, hero/tower damage, healing, lane, party, mode) stored in `od_history`; full fetch first, then `date=<days since last sync + 1>`; synced on start (if older than 1 h), on Steam ID change and on demand; off with the OpenDota switch. Dashboard source «Все игры» merges it with replays (replay row wins for the same match); replay-only metrics (LH@10, wards, stacks, deaths map, fastest items, …) stay computed over replays only. Hero page stays on replays. Empty history → hint about «Expose Public Match Data» | Owner: dashboard over replays only is a biased sample (2026-11-16). |
+| Auto-download | setting `auto_download` (off by default): matches of the OpenDota history from the last 15 days without a replay are downloaded one by one into `<data dir>/replays/auto` and parsed by the normal queue; outcomes in `auto_downloads` (expired / notfound are final; no salt → OpenDota parse requested, retry after 1 h; errors retry after 1 h). Runs after each history sync and every 30 min | Owner (2026-11-16): a replay is ~50–100 MB, the parsed match ~1.5 MB. |
+| Replay storage cap | `replay_keep`: `cap` (default, `replay_cap_gb` = 5) / `delete` (right after parsing) / `all`. Applies **only** to `<data dir>/replays/auto`, never to the Dota folder or manual downloads; only parsed replays are removed, oldest match first; `replays.pruned_at` marks them, re-parse skips them | Owner chose the cap. A pruned match keeps its data but cannot be re-parsed by a newer parser. |
 | Folder watching | poll the replay folder every 20 s, files must be ≥15 s old (Dota may still be writing); setting `watch_off` | Mockup «Слежу за папкой / Парсить новые сразу»; polling is portable and cheap. |
 | Import stages | the queue shows percent only, not header/entities/combat-log stages | Progress is measured by bytes read; manta has no stage hooks. |
 | Per-replay parse progress | bytes read from the .dem, `library:parsing` event, ≥2% steps | Cheap and monotonic; no manta hook needed. |
@@ -111,3 +113,8 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] OpenDota player history client + `od_history` table + background sync
 - [x] Dashboard source «Все игры / Только реплеи», merged aggregates
 - [x] Dashboard UI: source switch, sync status, OpenDota-only matches
+
+### Auto-download of missing replays
+- [ ] Store: `auto_downloads`, `replays.pruned_at`, missing-replay query; re-parse skips pruned
+- [ ] Downloader worker + storage cap pruning, settings
+- [ ] UI: settings and state on the Import page, pruned mark in the queue
