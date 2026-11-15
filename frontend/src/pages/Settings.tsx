@@ -9,11 +9,13 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [autostart, setAutostart] = useState<boolean | null>(null);
   const names = useNames();
 
   useEffect(() => {
     Api.GetSettings().then(setS);
     Api.Info().then(setInfo);
+    Api.Autostart().then(setAutostart).catch(() => setAutostart(false));
   }, []);
   if (!s) return <div className="dim">Загрузка…</div>;
 
@@ -67,6 +69,16 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
       toast(String(e?.message ?? e), true);
     } finally {
       setRefreshing(false);
+    }
+  };
+  // Applied right away: it is an OS registration, not part of the saved settings.
+  const toggleAutostart = async (on: boolean) => {
+    try {
+      await Api.SetAutostart(on);
+      setAutostart(on);
+      toast(on ? "drstats будет запускаться вместе с системой" : "Автозапуск выключен");
+    } catch (e: any) {
+      toast(String(e?.message ?? e), true);
     }
   };
   const update = () => Api.CheckForUpdates().catch((e) => toast(String(e?.message ?? e), true));
@@ -137,6 +149,17 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
         <div className="row">
           <button className="primary" onClick={save} disabled={saving}>{saving ? "Сохраняю…" : "Сохранить"}</button>
         </div>
+      </div>
+
+      <div className="card form">
+        <h2>Система</h2>
+        <label className="row" style={{ flexDirection: "row", alignItems: "center" }}>
+          <input type="checkbox" checked={!!autostart} disabled={autostart === null} onChange={(e) => toggleAutostart(e.target.checked)} />
+          <span>Запускать вместе с системой</span>
+        </label>
+        <small style={{ display: "block", marginTop: -8 }}>
+          Стартует свёрнутым: следит за папкой реплеев, подтягивает OpenDota и докачивает свежие игры в фоне.
+        </small>
       </div>
 
       <div className="card form">

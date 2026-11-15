@@ -7,7 +7,9 @@ import (
 	"embed"
 	"log"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/1rowvy/drstats/internal/heroimg"
@@ -24,6 +26,13 @@ var Version = "dev"
 // Repository publishing releases for the auto-updater.
 const releaseRepo = "1rowvy/drstats"
 
+// AppID identifies the app: GTK application id / Wayland app_id (the Linux
+// .desktop file is named after it) and the single-instance lock.
+const AppID = "io.github.drstats"
+
+// autostartFlag is passed by the login autostart entry: start minimised.
+const autostartFlag = "--autostart"
+
 //go:embed all:frontend/dist
 var assets embed.FS
 
@@ -34,6 +43,7 @@ func main() {
 		log.Fatal(err)
 	}
 	heroes := heroimg.New(filepath.Join(dir, "cache", "heroes"))
+	var win *application.WebviewWindow
 	app := application.New(application.Options{
 		Name:        "drstats",
 		Description: "Dota 2 replay stats",
@@ -45,9 +55,26 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		Linux: application.LinuxOptions{ApplicationID: AppID},
+		// Launching drstats again (or autostart while it already runs) brings
+		// the open window to the front instead of a second copy.
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: AppID,
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
+				if win != nil {
+					win.UnMinimise()
+					win.Show()
+					win.Focus()
+				}
+			},
+		},
 	})
 
-	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
+	startState := application.WindowStateNormal
+	if slices.Contains(os.Args[1:], autostartFlag) {
+		startState = application.WindowStateMinimised
+	}
+	win = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "drstats",
 		Width:            1400,
 		Height:           900,
@@ -56,6 +83,7 @@ func main() {
 		EnableFileDrop:   true,
 		BackgroundColour: application.NewRGB(15, 17, 21),
 		URL:              "/",
+		StartState:       startState,
 	})
 	win.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
 		files := e.Context().DroppedFiles()

@@ -41,6 +41,13 @@ export function AutoDownloadState(): $CancellablePromise<autodl$0.State> {
 }
 
 /**
+ * Autostart reports whether drstats starts at login.
+ */
+export function Autostart(): $CancellablePromise<boolean> {
+    return $Call.ByID(4156082814);
+}
+
+/**
  * CheckForUpdates opens the updater window and runs the check/install flow.
  */
 export function CheckForUpdates(): $CancellablePromise<void> {
@@ -191,6 +198,13 @@ export function SaveSettings(s: settings$0.Settings): $CancellablePromise<settin
  */
 export function ScanReplayDir(): $CancellablePromise<$models.ImportResult> {
     return $Call.ByID(4063972574);
+}
+
+/**
+ * SetAutostart turns starting at login (minimised) on or off.
+ */
+export function SetAutostart(on: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1324798748, on);
 }
 
 /**

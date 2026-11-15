@@ -267,6 +267,20 @@ func (a *App) SyncHistory() error {
 	return a.hist.Sync(a.bg, id, true)
 }
 
+// Autostart reports whether drstats starts at login.
+func (a *App) Autostart() (bool, error) { return a.app.Autostart.IsEnabled() }
+
+// SetAutostart turns starting at login (minimised) on or off.
+func (a *App) SetAutostart(on bool) error {
+	if !on {
+		return a.app.Autostart.Disable()
+	}
+	if Version == "dev" {
+		return errors.New("автозапуск работает только в собранной версии, не в dev")
+	}
+	return a.app.Autostart.EnableWithOptions(application.AutostartOptions{Identifier: "drstats", Arguments: []string{autostartFlag}})
+}
+
 // prune applies the storage cap to auto-downloaded replays.
 func (a *App) prune() {
 	if _, err := a.auto.Prune(); err != nil {
