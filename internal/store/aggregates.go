@@ -36,6 +36,7 @@ type GameRow struct {
 	CampsStacked int     `json:"camps_stacked"`
 	Stuns        float64 `json:"stuns"`
 	TeamKills    int     `json:"team_kills"`
+	PartySize    int     `json:"party_size"` // OpenDota; 0 when unknown
 
 	// Laning stage (nil when the series has no sample at 10:00).
 	LH10      *int            `json:"lh10"`
@@ -58,10 +59,12 @@ func (s *Store) Games(accountID uint32) ([]GameRow, error) {
 		       p.obs_placed, p.sen_placed, p.camps_stacked, p.stuns,
 		       (SELECT COALESCE(SUM(q.kills), 0) FROM players q WHERE q.match_id = m.match_id AND q.team = p.team),
 		       s.last_hits, s.denies, s.net_worth, s.total_xp,
-		       (SELECT COUNT(*) FROM events e WHERE e.match_id = m.match_id AND e.type = ? AND e.player_id = p.player_id AND e.t <= 600)
+		       (SELECT COUNT(*) FROM events e WHERE e.match_id = m.match_id AND e.type = ? AND e.player_id = p.player_id AND e.t <= 600),
+		       COALESCE(o.party_size, 0)
 		FROM players p
 		JOIN matches m ON m.match_id = p.match_id
 		LEFT JOIN series s ON s.match_id = m.match_id AND s.player_id = p.player_id AND s.t = 600
+		LEFT JOIN od_players o ON o.match_id = m.match_id AND o.hero_id = p.hero_id
 		WHERE p.account_id = ?
 		ORDER BY m.end_time, m.match_id`, EventDeath, accountID)
 	if err != nil {
@@ -77,7 +80,7 @@ func (s *Store) Games(accountID uint32) ([]GameRow, error) {
 			&g.PlayerID, &g.Team, &g.HeroID, &g.HeroName, &g.Kills, &g.Deaths, &g.Assists, &g.LastHits, &g.Denies,
 			&g.NetWorth, &g.TotalGold, &g.TotalXP, &g.HeroDamage, &g.TowerDamage, &g.Healing, &g.GoldLost,
 			&g.ObsPlaced, &g.SenPlaced, &g.CampsStacked, &g.Stuns, &g.TeamKills,
-			&lh, &dn, &nw, &xp, &g.Deaths10); err != nil {
+			&lh, &dn, &nw, &xp, &g.Deaths10, &g.PartySize); err != nil {
 			return nil, err
 		}
 		if lh.Valid {
@@ -172,6 +175,41 @@ func (s *Store) AbilityCasts(accountID uint32, heroID int) ([]AbilityTotal, erro
 			return nil, err
 		}
 		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// FastItem is the earliest first purchase of an item over the account's matches.
+type FastItem struct {
+	Item    string  `json:"item"`
+	T       float64 `json:"t"`
+	MatchID int64   `json:"match_id"`
+	N       int     `json:"n"` // matches with the item bought
+}
+
+// FastestItems returns, per item, the earliest first purchase and in how many
+// matches it was bought at all.
+func (s *Store) FastestItems(accountID uint32) ([]FastItem, error) {
+	rows, err := s.db.Query(`
+		WITH firsts AS (
+			SELECT e.match_id, e.key, MIN(e.t) AS t
+			FROM events e JOIN players p ON p.match_id = e.match_id AND p.player_id = e.player_id
+			WHERE e.type = ? AND p.account_id = ?
+			GROUP BY e.match_id, e.key)
+		SELECT f.key, f.t, f.match_id, c.n FROM firsts f
+		JOIN (SELECT key, MIN(t) AS t, COUNT(*) AS n FROM firsts GROUP BY key) c ON c.key = f.key AND c.t = f.t
+		GROUP BY f.key`, EventPurchase, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []FastItem{}
+	for rows.Next() {
+		var it FastItem
+		if err := rows.Scan(&it.Item, &it.T, &it.MatchID, &it.N); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
 	}
 	return out, rows.Err()
 }

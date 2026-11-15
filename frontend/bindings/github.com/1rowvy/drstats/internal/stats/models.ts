@@ -59,6 +59,70 @@ export interface Amount {
 }
 
 /**
+ * Battle is one team fight / skirmish the focused player took part in.
+ */
+export interface Battle {
+    "start": number;
+    "end": number;
+
+    /**
+     * replay tick a few seconds before the start
+     */
+    "tick": number;
+    "region": string;
+    "x": number;
+    "y": number;
+
+    /**
+     * Participants by side, from the focused player's point of view.
+     */
+    "allies": number;
+    "enemies": number;
+
+    /**
+     * Hero deaths in the fight: enemies killed, allies lost.
+     */
+    "kills": number;
+    "losses": number;
+    "won": boolean;
+
+    /**
+     * GoldSwing is the change of the team net worth difference over the
+     * fight, positive = good for the focused player's team.
+     */
+    "gold_swing": number;
+
+    /**
+     * Focused player.
+     */
+    "my_damage": number;
+    "my_taken": number;
+
+    /**
+     * of the team's damage in the fight
+     */
+    "my_share": number;
+
+    /**
+     * killing blows
+     */
+    "my_kills": number;
+    "my_assists": number;
+    "my_died": boolean;
+
+    /**
+     * my damage by inflictor
+     */
+    "my_sources": Amount[] | null;
+    "heroes": FightHero[] | null;
+
+    /**
+     * Deaths are indexes into MatchView.Deaths.
+     */
+    "deaths": number[] | null;
+}
+
+/**
  * Bucket is a winrate group (hero, weekday, hour, lane).
  */
 export interface Bucket {
@@ -137,6 +201,19 @@ export interface Dashboard {
      * no Steam ID configured
      */
     "unknown": boolean;
+    "extras": Extras;
+}
+
+/**
+ * DayBucket counts the games of one local calendar day.
+ */
+export interface DayBucket {
+    /**
+     * YYYY-MM-DD, local time of the game start
+     */
+    "date": string;
+    "games": number;
+    "wins": number;
 }
 
 /**
@@ -152,6 +229,36 @@ export interface DeathCtx {
      * an allied observer ward saw the spot
      */
     "vision": boolean;
+
+    /**
+     * replay tick a few seconds before the death
+     */
+    "tick": number;
+}
+
+/**
+ * Extras are the dashboard-only summaries.
+ */
+export interface Extras {
+    "hours": number;
+
+    /**
+     * last ActivityWeeks weeks, only days with games
+     */
+    "days": DayBucket[] | null;
+    "records": Record[] | null;
+    "streak": Streak;
+
+    /**
+     * Party / solo by OpenDota party size (matches without it are skipped).
+     */
+    "party": Bucket;
+    "solo": Bucket;
+
+    /**
+     * earliest first purchase per item
+     */
+    "fastest": FastItemView[] | null;
 }
 
 /**
@@ -163,6 +270,41 @@ export interface Farm {
     "gpm": Metric;
     "xpm": Metric;
     "last_hits": Metric;
+
+    /**
+     * Advantage is Radiant minus Dire net worth.
+     */
+    "advantage": Line;
+
+    /**
+     * Ticks are the replay ticks of T (for demo_gototick).
+     */
+    "ticks": number[] | null;
+}
+
+/**
+ * FastItemView is store.FastItem with the match context.
+ */
+export interface FastItemView {
+    "item": string;
+    "t": number;
+    "match_id": number;
+
+    /**
+     * matches with the item bought
+     */
+    "n": number;
+    "hero_name": string;
+    "end_time": number;
+}
+
+/**
+ * FightHero is one participant's damage in a fight.
+ */
+export interface FightHero {
+    "pid": number;
+    "dealt": number;
+    "taken": number;
 }
 
 /**
@@ -282,6 +424,11 @@ export interface Game {
     "team_kills": number;
 
     /**
+     * OpenDota; 0 when unknown
+     */
+    "party_size": number;
+
+    /**
      * Laning stage (nil when the series has no sample at 10:00).
      */
     "lh10": number | null;
@@ -331,6 +478,26 @@ export interface GoldSource {
      */
     "key": string;
     "amount": number;
+}
+
+/**
+ * Grade is an overall mark of the focused player's game: percentile of the
+ * key metrics against their own other matches (same hero when there are
+ * enough), plus a bonus for the win.
+ */
+export interface Grade {
+    /**
+     * 0..100
+     */
+    "score": number;
+    "letter": string;
+
+    /**
+     * Basis is how many own matches the percentiles are taken over and
+     * whether they are on the same hero.
+     */
+    "basis": number;
+    "on_hero": boolean;
 }
 
 /**
@@ -540,6 +707,17 @@ export interface MatchView {
     "fights": Fights;
     "abilities": Abilities;
     "vision": Vision;
+    "objectives": ObjectiveView[] | null;
+
+    /**
+     * fights the focused player took part in
+     */
+    "battles": Battle[] | null;
+
+    /**
+     * Grade of the focused player's game; nil without enough own matches.
+     */
+    "grade": Grade | null;
 }
 
 /**
@@ -566,6 +744,31 @@ export interface MetricAvg {
     "key": string;
     "avg": number;
     "n": number;
+}
+
+/**
+ * ObjectiveView is a destroyed building or a Roshan kill on the timeline.
+ */
+export interface ObjectiveView {
+    "t": number;
+
+    /**
+     * tower, barracks, fort, roshan
+     */
+    "kind": string;
+
+    /**
+     * npc name, e.g. npc_dota_goodguys_tower1_mid
+     */
+    "key": string;
+
+    /**
+     * team that lost the building (0 for Roshan)
+     */
+    "team": number;
+    "killer": number;
+    "killer_name": string;
+    "tick": number;
 }
 
 /**
@@ -668,6 +871,34 @@ export interface PlayerView {
      * benchmarks); nil when not fetched.
      */
     "od": opendota$0.Player | null;
+}
+
+/**
+ * Record is a best-ever value over the filtered matches.
+ */
+export interface Record {
+    /**
+     * max_gpm, max_kills, max_hero_dmg, longest
+     */
+    "key": string;
+    "value": number;
+    "match_id": number;
+    "hero_name": string;
+    "end_time": number;
+    "win": boolean;
+}
+
+/**
+ * Streak is the longest run of wins.
+ */
+export interface Streak {
+    "len": number;
+
+    /**
+     * end time of the first and last match of the run
+     */
+    "from": number;
+    "to": number;
 }
 
 /**

@@ -101,5 +101,25 @@ func TestMatchViewOnReplay(t *testing.T) {
 		if sum := share.Base + share.Lane + share.Jungle + share.Enemy; sum < 0.99 || sum > 1.01 {
 			t.Errorf("%s: time share sums to %v", p.HeroName, sum)
 		}
+		var won, kills int
+		for _, b := range v.Battles {
+			if b.Won {
+				won++
+			}
+			kills += b.MyKills
+		}
+		t.Logf("    battles %d (won %d), my kills in battles %d/%d", len(v.Battles), won, kills, p.Kills)
+		if len(v.Battles) == 0 || kills > p.Kills {
+			t.Errorf("%s: battles %d, kills %d of %d", p.HeroName, len(v.Battles), kills, p.Kills)
+		}
+	}
+	v, _ := BuildMatchView(st, mid, 0, 0, DefaultOptions)
+	adv := v.Farm.Advantage
+	last := adv[len(adv)-1]
+	if last == nil || (*last > 0) != (m.Winner == parser.TeamRadiant) {
+		t.Errorf("final advantage %v, winner %d", last, m.Winner)
+	}
+	if len(v.Objectives) != 21 || len(v.Farm.Ticks) != len(v.Farm.T) {
+		t.Errorf("objectives %d, ticks %d/%d", len(v.Objectives), len(v.Farm.Ticks), len(v.Farm.T))
 	}
 }

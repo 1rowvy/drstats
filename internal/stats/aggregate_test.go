@@ -65,3 +65,28 @@ func TestApplyFilter(t *testing.T) {
 		t.Errorf("mode: %d", len(got))
 	}
 }
+
+func TestGradesAndExtras(t *testing.T) {
+	// 12 games on one hero, GPM rising; the last one is the best and a win.
+	gs := games(12, func(i int) store.GameRow {
+		w := 3
+		if i%2 == 0 || i == 11 {
+			w = 2
+		}
+		return store.GameRow{MatchID: int64(i + 1), HeroID: 1, Team: 2, Winner: w, Duration: 1800,
+			EndTime: time.Now().Add(-time.Duration(12-i) * time.Hour).Unix(),
+			TotalGold: 9000 + 600*i, TotalXP: 9000 + 600*i, Kills: i, Deaths: 12 - i, Assists: 5, HeroDamage: 1000 * i, TeamKills: 30}
+	})
+	g := Grades(gs)
+	best, worst := g[12], g[1]
+	if best.Letter == "" || best.Score < 90 || !best.OnHero || best.Basis != 11 {
+		t.Errorf("best: %+v", best)
+	}
+	if worst.Score > 20 {
+		t.Errorf("worst: %+v", worst)
+	}
+	x := buildExtras(gs, time.Now())
+	if x.Hours != 6 || x.Streak.Len != 2 || len(x.Records) != 4 || x.Records[0].MatchID != 12 {
+		t.Errorf("extras: hours %v streak %+v records %+v", x.Hours, x.Streak, x.Records)
+	}
+}

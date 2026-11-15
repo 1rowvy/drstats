@@ -26,6 +26,11 @@ export interface Progress {
      * parsed by an older parser version
      */
     "stale": number;
+
+    /**
+     * AvgParseMS is the mean parse time of replays parsed by the current parser.
+     */
+    "avg_parse_ms": number;
 }
 
 /**

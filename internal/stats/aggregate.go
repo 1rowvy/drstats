@@ -152,6 +152,7 @@ type Dashboard struct {
 	World     [2]float64         `json:"world"`
 	Total     int                `json:"total"`   // matches before filtering
 	Unknown   bool               `json:"unknown"` // no Steam ID configured
+	Extras    Extras             `json:"extras"`
 }
 
 func worldBounds() [2]float64 { return [2]float64{parser.WorldMin, parser.WorldMax} }
@@ -161,16 +162,14 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter) (*Dashboard, er
 	d := &Dashboard{Filter: f, Averages: []MetricAvg{}, ByHero: []Bucket{}, ByWeekday: []Bucket{}, ByHour: []Bucket{},
 		ByLane: []Bucket{}, Trend: []TrendGame{}, Habits: []Habit{}, Recent: []Game{}, Deaths: []store.DeathPoint{},
 		Heroes: []HeroOption{}, Modes: []int{}, World: worldBounds(), Unknown: accountID == 0}
-	rows, err := st.Games(accountID)
+	all, err := loadGames(st, accountID)
 	if err != nil {
 		return nil, err
 	}
-	d.Total = len(rows)
-	all := make([]Game, len(rows))
+	d.Total = len(all)
 	heroes := map[int]*HeroOption{}
 	modes := map[int]bool{}
-	for i, r := range rows {
-		all[i] = Game{GameRow: r, Win: r.Team == r.Winner, Lane: DetectLane(r.LaneEarly)}
+	for _, r := range all {
 		h := heroes[r.HeroID]
 		if h == nil {
 			h = &HeroOption{HeroID: r.HeroID, HeroName: r.HeroName}
@@ -219,7 +218,21 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter) (*Dashboard, er
 		d.Recent = append(d.Recent, games[i])
 	}
 
+	d.Extras = buildExtras(games, time.Now())
 	if accountID != 0 {
+		fast, err := st.FastestItems(accountID)
+		if err != nil {
+			return nil, err
+		}
+		byID := map[int64]*Game{}
+		for i := range games {
+			byID[games[i].MatchID] = &games[i]
+		}
+		for _, it := range fast {
+			if g, ok := byID[it.MatchID]; ok {
+				d.Extras.Fastest = append(d.Extras.Fastest, FastItemView{FastItem: it, HeroName: g.HeroName, EndTime: g.EndTime})
+			}
+		}
 		deaths, err := st.DeathPoints(accountID, f.HeroID)
 		if err != nil {
 			return nil, err
@@ -247,6 +260,28 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter) (*Dashboard, er
 		}
 	}
 	return d, nil
+}
+
+// loadGames returns the account's matches with derived values, oldest first.
+func loadGames(st *store.Store, accountID uint32) ([]Game, error) {
+	rows, err := st.Games(accountID)
+	if err != nil {
+		return nil, err
+	}
+	all := make([]Game, len(rows))
+	for i, r := range rows {
+		all[i] = Game{GameRow: r, Win: r.Team == r.Winner, Lane: DetectLane(r.LaneEarly)}
+	}
+	return all, nil
+}
+
+// MatchGrades grades every match of the account (see Grades).
+func MatchGrades(st *store.Store, accountID uint32) (map[int64]Grade, error) {
+	games, err := loadGames(st, accountID)
+	if err != nil {
+		return nil, err
+	}
+	return Grades(games), nil
 }
 
 func gameStart(g *Game) time.Time {

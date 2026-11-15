@@ -42,6 +42,10 @@ type Farm struct {
 	GPM      Metric    `json:"gpm"`
 	XPM      Metric    `json:"xpm"`
 	LastHits Metric    `json:"last_hits"`
+	// Advantage is Radiant minus Dire net worth.
+	Advantage Line `json:"advantage"`
+	// Ticks are the replay ticks of T (for demo_gototick).
+	Ticks []uint32 `json:"ticks"`
 }
 
 // MatchView is everything the match page needs.
@@ -69,6 +73,11 @@ type MatchView struct {
 	Fights    Fights       `json:"fights"`
 	Abilities Abilities    `json:"abilities"`
 	Vision    Vision       `json:"vision"`
+
+	Objectives []ObjectiveView `json:"objectives"`
+	Battles    []Battle        `json:"battles"` // fights the focused player took part in
+	// Grade of the focused player's game; nil without enough own matches.
+	Grade *Grade `json:"grade"`
 }
 
 // BuildMatchView loads a match and derives the view for the given focus:
@@ -114,14 +123,28 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 		}
 	}
 
+	clock := parser.NewClock(m.StartTick, m.Pauses)
 	v.DeathCtx = deathContext(players, deaths, m.Wards)
+	for i := range v.DeathCtx {
+		v.DeathCtx[i].Tick = clock.Tick(math.Max(deaths[i].T-8, -90))
+	}
 
 	byPID := splitSeries(series)
 	if v.Focus >= 0 {
 		v.Opponent = LaneOpponent(players, byPID, v.Focus)
 	}
 	v.Farm = buildFarm(players, byPID, v.Focus, v.Opponent)
+	v.Farm.Advantage = advantage(players, byPID, v.Farm.T)
+	v.Farm.Ticks = make([]uint32, len(v.Farm.T))
+	for i, t := range v.Farm.T {
+		v.Farm.Ticks[i] = clock.Tick(t)
+	}
+	v.Objectives = []ObjectiveView{}
+	for _, o := range m.Objectives {
+		v.Objectives = append(v.Objectives, ObjectiveView{Objective: o, Tick: clock.Tick(math.Max(o.T-10, -90))})
+	}
 	v.Items = []ItemTiming{}
+	v.Battles = []Battle{}
 	if v.Focus < 0 {
 		return v, nil
 	}
@@ -149,6 +172,16 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 	v.Fights = buildFights(m, me)
 	v.Abilities = buildAbilities(m, v.Focus, opt)
 	v.Vision = buildVision(m, me, ss, v.Laning.Lane)
+	v.Battles = buildBattles(m, players, byPID, v.Focus, clock)
+	if me.AccountID != 0 {
+		games, err := loadGames(st, me.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		if g, ok := Grades(games)[matchID]; ok {
+			v.Grade = &g
+		}
+	}
 	return v, nil
 }
 
@@ -296,6 +329,7 @@ func average(axis []float64, pids []int, line func(int) Line) Line {
 type DeathCtx struct {
 	Region string `json:"region"` // map zone key, see Region
 	Vision bool   `json:"vision"` // an allied observer ward saw the spot
+	Tick   uint32 `json:"tick"`   // replay tick a few seconds before the death
 }
 
 // obsRadius is the observer ward vision radius (day), world units.

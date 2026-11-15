@@ -43,6 +43,12 @@ export interface Settings {
     "opendota_off": boolean;
 
     /**
+     * WatchOff stops watching the replay folder for new files (parsed as
+     * soon as they appear). Off by default = watching.
+     */
+    "watch_off": boolean;
+
+    /**
      * MapImage is an optional user-supplied minimap background (png/jpg).
      */
     "map_image": string;

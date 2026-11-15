@@ -53,6 +53,7 @@ export interface MatchMeta {
     "winner": number;
     "duration": number;
     "end_time": number;
+    "start_tick": number;
 }
 
 /**
@@ -103,6 +104,13 @@ export interface MatchRow {
      * OpenDota estimated position 1..5, 0 if unknown
      */
     "position": number;
+
+    /**
+     * Grade of the game (see stats.Grade), filled by the caller; "" when
+     * there are too few own matches to compare with.
+     */
+    "grade": string;
+    "grade_score": number;
 
     /**
      * Lane is the detected laning-stage lane; filled by the caller from LaneEarly.

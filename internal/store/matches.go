@@ -298,6 +298,10 @@ type MatchRow struct {
 	GPM      int    `json:"gpm"`
 	LH10     *int   `json:"lh10"`     // last hits at 10:00, nil without a sample
 	Position int    `json:"position"` // OpenDota estimated position 1..5, 0 if unknown
+	// Grade of the game (see stats.Grade), filled by the caller; "" when
+	// there are too few own matches to compare with.
+	Grade      string `json:"grade"`
+	GradeScore int    `json:"grade_score"`
 	// Lane is the detected laning-stage lane; filled by the caller from LaneEarly.
 	Lane      string          `json:"lane"`
 	LaneEarly []parser.Sample `json:"-"`
