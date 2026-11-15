@@ -2,8 +2,9 @@
 
 Personal desktop app that parses Dota 2 replays (`.dem`) and shows detailed stats
 for one player. Fully local: replays are parsed on your machine and stored in a
-SQLite database. The only network calls are OpenDota constants (hero/item names)
-and the GitHub Releases update check.
+SQLite database. The only network calls are OpenDota constants (hero/item names),
+optional replay download by match id (OpenDota lookup + Valve replay servers) and
+the GitHub Releases update check.
 
 Built with [Wails v3](https://v3.wails.io) (Go + WebView), React + TypeScript,
 [manta](https://github.com/dotabuff/manta) and pure-Go SQLite.
@@ -16,9 +17,30 @@ Built with [Wails v3](https://v3.wails.io) (Go + WebView), React + TypeScript,
    (`…/steamapps/common/dota 2 beta/game/dota/replays`). It is scanned on start
    and with the **Scan** button.
 3. Replays elsewhere: **Import…** or drag `.dem` files / folders onto the window.
+4. A match you don't have locally: type its id (or an OpenDota/Dotabuff URL) into
+   the **match id** box in the sidebar. The replay is downloaded into the replay
+   folder (or `<data dir>/replays` if that folder does not exist) and parsed.
+   Valve keeps replays for about two weeks.
 
 Replays are parsed in the background (2 at a time by default, ~1 s per replay).
 A replay that fails to parse is kept with its error text and can be retried.
+After an app update that changes the parser, the sidebar offers to re-parse
+stale matches (**Settings → Re-parse** does it for all).
+
+What you get:
+- **Dashboard**: winrate by hero / weekday / hour / lane, averages, a trend over the
+  last 30 matches, "worst habits" (last 10 matches vs the ones before), a death
+  heatmap; filters by hero, period, last N, result, mode and lane.
+- **Hero page**: the same for one hero plus item timings and cast counts.
+- **Match page**: scoreboard; laning (LH/DN/NW/XP at 5 and 10 min vs the lane
+  opponent, lane deaths); farm & gold (NW/GPM/XPM/LH charts, gold by source, idle
+  periods); items (purchase timings vs your average on the hero); deaths (killer,
+  killing blow, gold lost, buyback, map); fights (KP%, damage dealt/taken by hero and
+  source, healing, building damage); abilities (casts and a **heuristic** hit rate);
+  vision & map (wards, dewards, stacks, runes, movement heatmap, time share by zone).
+
+Heuristics (lane, idle periods, hit rate, map zones) are approximations; their
+thresholds are in Settings.
 
 Data lives in `~/.config/drstats/drstats.db` (Linux) or
 `%AppData%\drstats\drstats.db` (Windows).

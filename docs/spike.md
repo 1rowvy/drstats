@@ -69,3 +69,20 @@ Names resolve via the `CombatLogNames` string table (attacker, target, inflictor
   does not match the real lane reliably).
 - Rune pickup is not in the combat log — use the chat event.
 - Download: Valve's `.dem.bz2` is currently **zstd**-compressed despite the name.
+
+## Phase 3 findings
+- **Starting items bought during strategy time are not in the combat log** (it starts at
+  PRE_GAME), so the purchase log misses them; everything after matches OpenDota exactly.
+  The combat log also has `ward_dispenser` (ward stack merge) and `recipe_*` entries — skipped.
+- Ward deaths: the entity is deleted ~7 s after the DEATH entry; use the `m_lifeState`
+  flip. Expired wards also produce a DEATH entry whose attacker is the ward itself.
+- Ward owner: `m_hOwnerEntity` is the owner's hero handle (matches `m_hSelectedHero`).
+- BUYBACK combat log `value` is the player id.
+- MODIFIER_ADD carries `modifier_ability` (CombatLogNames index of the ability that
+  applied it) — the right key for the hit heuristic.
+- Gold by source: `m_iCreepKillGold + m_iCreepDenyGold`, `m_iNeutralKillGold`,
+  `m_iHeroKillGold`, `m_iBuildingGold`, `m_iIncomeGold`, `m_iBountyGold`, `m_iRoshanGold`;
+  the rest (courier, wards, abilities, comeback, shared) is "other". `m_iGoldLostToDeath`
+  increments right after a death; summed per death it equals the final counter.
+- Runes: ChatEvent RUNE_PICKUP / RUNE_BOTTLE, `playerid_1` + rune type in `value`;
+  counts match OpenDota `runes_log`. Camp stacks: `m_iCampsStacked` increments.

@@ -22,6 +22,15 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | Lane opponent | enemy with the smallest mean distance to me over 1:00–10:00 | Checked against OpenDota lanes on the test replay. Refine with roles in phase 3. |
 | Release build | one ubuntu-24.04 job: native linux build + `GOOS=windows` cross-compile (no CGO on Windows) | Simpler and faster than a Windows runner. |
 | Dev/test driving | `wails3 task build:server` + Playwright against the HTTP server | GUI can be checked headlessly without a display. |
+| Parser v2 data model | purchases, casts, hits, wards, runes, stacks, buybacks as rows in `events` (new `key` column); damage/heal as per-player aggregates in `combat` (player, kind, other side, inflictor); cumulative farm gold and damage in `series` | Raw DAMAGE entries (~33k/match) are only needed aggregated; per-event rows stay for things with a time. |
+| Ability hit heuristic | parser stores ability/item `Hit`s on enemy (non-illusion) heroes — DAMAGE with that inflictor or MODIFIER_ADD whose `modifier_ability` is it — merged within 0.2 s; a cast is a hit if one follows within `hit_window_sec` (setting, applied at view time). Hit rate is shown only for abilities that touched an enemy hero at least once in the match | Window stays tunable without re-parsing; buffs/blinks don't show a misleading 0%. |
+| Idle periods | alive stretches ≥ `idle_threshold` with no LH/DN, neutral gold, damage dealt or taken (series step 5 s) | Computable from stored series, threshold tunable without re-parsing. |
+| Lane & map zones | lane = lane band holding ≥40% of alive samples 1:00–10:00 (else jungle/roam); zones: own base, own lane, own half, enemy half (river along x+y=0) — coarse world-coordinate geometry | Matches OpenDota lanes for all 10 players of the test replay. |
+| Ward kills | ward entity `m_lifeState` change matched to the ward DEATH combat log entry (±1 s); an entry whose attacker is the ward itself is expiry | Entity deletion comes ~7 s after death; matches OpenDota observer/sentry kills exactly. |
+| Worst habits | last 10 filtered matches vs all earlier filtered matches (≥5), worse by ≥10%; 16 metrics with direction | Simple and explainable. |
+| Weekday / hour | local time of game start (end − duration) | |
+| Item "key" | UI marks items ≥1800 gold (OpenDota cost); consumables hidden by default | No reliable "core item" list in constants. |
+| Download target | configured replay folder if it exists, else `<data dir>/replays`; existing `<id>.dem` is reused | Downloaded replays get picked up by the normal scan too. |
 | Replay download | OpenDota `/matches/{id}` → `cluster` + `replay_salt` → `replay{cluster}.valve.net/570/{id}_{salt}.dem.bz2`. **The file is currently zstd despite the `.bz2` name** — detect by magic bytes, support both. 404 → "Valve already deleted this replay". | found during spike |
 
 ## Phases
@@ -53,14 +62,14 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] README: build on Windows & Fedora, dev mode
 
 ### Phase 3 — everything else
-- [ ] Laning: LH/DN @5/@10, NW/XP diff vs lane opponent (detected by early positions), lane deaths
-- [ ] Gold sources: lane creeps / neutrals / heroes / buildings / passive; idle periods (threshold)
-- [ ] Items: purchase timings; key item timing vs my average on this hero
-- [ ] Deaths: killer, killing blow source, gold lost, buyback
-- [ ] Fights: KP%, damage dealt/taken by hero and source (autoattack/ability/item), healing, building damage
-- [ ] Abilities: casts per ability & active item, **heuristic** hit rate (damage/debuff within N s), labeled as heuristic
-- [ ] Vision & map: wards placed/dewarded, my wards killed, stacks, runes, movement heatmap, time share (own lane / jungle / enemy half / base)
-- [ ] Aggregates: winrate by hero / weekday / hour; per-hero averages & trend over last N; "worst habits" (last 10 worse than my avg); death heatmap per hero; filters (hero, period, W/L, mode)
-- [ ] Hero page, Dashboard
-- [ ] Download by match ID via OpenDota
-- [ ] "Re-parse all" button (parser_version)
+- [x] Laning: LH/DN @5/@10, NW/XP diff vs lane opponent (detected by early positions), lane deaths
+- [x] Gold sources: lane creeps / neutrals / heroes / buildings / passive; idle periods (threshold)
+- [x] Items: purchase timings; key item timing vs my average on this hero
+- [x] Deaths: killer, killing blow source, gold lost, buyback
+- [x] Fights: KP%, damage dealt/taken by hero and source (autoattack/ability/item), healing, building damage
+- [x] Abilities: casts per ability & active item, **heuristic** hit rate (damage/debuff within N s), labeled as heuristic
+- [x] Vision & map: wards placed/dewarded, my wards killed, stacks, runes, movement heatmap, time share (own lane / jungle / enemy half / base)
+- [x] Aggregates: winrate by hero / weekday / hour; per-hero averages & trend over last N; "worst habits" (last 10 worse than my avg); death heatmap per hero; filters (hero, period, W/L, mode)
+- [x] Hero page, Dashboard
+- [x] Download by match ID via OpenDota
+- [x] "Re-parse all" button (parser_version)
