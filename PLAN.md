@@ -115,6 +115,6 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Dashboard UI: source switch, sync status, OpenDota-only matches
 
 ### Auto-download of missing replays
-- [ ] Store: `auto_downloads`, `replays.pruned_at`, missing-replay query; re-parse skips pruned
-- [ ] Downloader worker + storage cap pruning, settings
-- [ ] UI: settings and state on the Import page, pruned mark in the queue
+- [x] Store: `auto_downloads`, `replays.pruned_at`, missing-replay query; re-parse skips pruned
+- [x] Downloader worker + storage cap pruning, settings
+- [x] UI: settings and state on the Import page, pruned mark in the queue
