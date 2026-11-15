@@ -123,3 +123,32 @@ func (s *Store) DeleteReplay(id int64) error {
 	_, err := s.db.Exec(`DELETE FROM replays WHERE id = ?`, id)
 	return err
 }
+
+// QueueReparse resets parsed and failed replays to pending and returns their
+// ids. With onlyStale, only replays parsed by an older parser version (and
+// failed ones, which a newer parser may handle) are reset.
+func (s *Store) QueueReparse(onlyStale bool, version int) ([]int64, error) {
+	rows, err := s.db.Query(`UPDATE replays SET status = 'pending', error = ''
+		WHERE status IN ('done', 'failed') AND (? = 0 OR parser_version < ? OR status = 'failed')
+		RETURNING id`, onlyStale, version)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// StaleCount returns how many parsed replays were parsed by an older parser version.
+func (s *Store) StaleCount(version int) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM replays WHERE status = 'done' AND parser_version < ?`, version).Scan(&n)
+	return n, err
+}

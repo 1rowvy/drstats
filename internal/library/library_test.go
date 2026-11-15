@@ -77,4 +77,17 @@ func TestImportAndParse(t *testing.T) {
 	if _, err := l.Import([]string{filepath.Join(replays, "notes.txt")}); err == nil {
 		t.Error("importing a non-replay must report an error")
 	}
+
+	// Everything is current: "only stale" re-queues just the failed replay.
+	if n, err := l.ReparseAll(true); err != nil || n != 1 {
+		t.Errorf("reparse stale: %d %v", n, err)
+	}
+	l.Wait()
+	if n, _ := l.ReparseAll(false); n != 3 {
+		t.Errorf("reparse all: %d", n)
+	}
+	l.Wait()
+	if p := l.Progress(); p.Done != 2 || p.Failed != 1 || p.Stale != 0 {
+		t.Errorf("after reparse: %+v", p)
+	}
 }

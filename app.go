@@ -270,6 +270,10 @@ func (a *App) importResult(n int, err error) ImportResult {
 	return r
 }
 
+// ReparseAll queues parsed replays again; onlyStale limits it to replays
+// parsed by an older parser version (and failed ones).
+func (a *App) ReparseAll(onlyStale bool) (int, error) { return a.lib.ReparseAll(onlyStale) }
+
 // Reparse queues a replay for parsing again.
 func (a *App) Reparse(replayID int64) error { return a.lib.Reparse(replayID) }
 

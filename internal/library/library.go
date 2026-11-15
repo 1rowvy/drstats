@@ -38,6 +38,7 @@ type Progress struct {
 	Parsing int `json:"parsing"`
 	Done    int `json:"done"`
 	Failed  int `json:"failed"`
+	Stale   int `json:"stale"` // parsed by an older parser version
 }
 
 // ParseFunc parses one replay file; replaceable in tests.
@@ -200,19 +201,15 @@ func (l *Library) fail(id int64, msg string) {
 }
 
 func (l *Library) emitProgress() {
-	c, err := l.st.StatusCounts()
-	if err != nil {
-		return
-	}
-	l.emit(EventProgress, Progress{Pending: c[store.StatusPending], Parsing: c[store.StatusParsing],
-		Done: c[store.StatusDone], Failed: c[store.StatusFailed]})
+	l.emit(EventProgress, l.Progress())
 }
 
 // Progress returns the current queue state.
 func (l *Library) Progress() Progress {
 	c, _ := l.st.StatusCounts()
+	stale, _ := l.st.StaleCount(parser.Version)
 	return Progress{Pending: c[store.StatusPending], Parsing: c[store.StatusParsing],
-		Done: c[store.StatusDone], Failed: c[store.StatusFailed]}
+		Done: c[store.StatusDone], Failed: c[store.StatusFailed], Stale: stale}
 }
 
 // IsReplay reports whether a path looks like a Dota 2 replay file.
@@ -295,6 +292,22 @@ func (l *Library) add(path string, info fs.FileInfo) (int, error) {
 	l.emit(EventReplay, ReplayEvent{ReplayID: id, Status: store.StatusPending})
 	l.enqueue(id)
 	return 1, nil
+}
+
+// ReparseAll queues every parsed or failed replay again (onlyStale: only
+// those parsed by an older parser version, plus failed ones). Replays already
+// queued or parsing are left alone. Returns how many were queued.
+func (l *Library) ReparseAll(onlyStale bool) (int, error) {
+	ids, err := l.st.QueueReparse(onlyStale, parser.Version)
+	if err != nil {
+		return 0, err
+	}
+	for _, id := range ids {
+		l.emit(EventReplay, ReplayEvent{ReplayID: id, Status: store.StatusPending})
+		l.enqueue(id)
+	}
+	l.emitProgress()
+	return len(ids), nil
 }
 
 // Reparse queues one replay again regardless of its status.
