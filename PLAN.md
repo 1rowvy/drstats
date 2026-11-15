@@ -16,7 +16,7 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | Auto-update | Wails v3 updater, GitHub Releases provider; CI builds on tag `v*` | One user, two machines — new build lands on both automatically. Repo is **public** so the updater needs no token. |
 | UI language | Russian | Single Russian-speaking user; code, comments and docs stay English. |
 | Charts wrapper | own ~30-line wrapper over tree-shaken `echarts/core` | `echarts-for-react` failed to bundle with Vite 8/Rolldown (missing `tslib`); one dependency less. |
-| Hero icons | initials on attribute colour, no images | Steam CDN images would be an extra network dependency. |
+| Hero icons | Valve portraits from the Steam CDN (`dota_react/heroes/<name>.png`), fetched on first use by asset-server middleware (`/heroimg/`, `internal/heroimg`) and cached in `<data dir>/cache/heroes`; initials tile as fallback | Owner asked for real icons (2026-11). Cache keeps it offline after the first view; failures retry after 10 min. |
 | Replay storage | replays are registered in place (path in DB), not copied | Parsed data lives in SQLite; the file is only needed for re-parsing. |
 | Series step | 5 game seconds (`parser.SeriesStep`) | ~4k rows per match, enough for charts and death/lane positions. |
 | Lane opponent | enemy with the smallest mean distance to me over 1:00–10:00 | Checked against OpenDota lanes on the test replay. Refine with roles in phase 3. |
@@ -36,6 +36,7 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | UI redesign (mockups 2026-11) | dark theme with orange accent, mono numerals; nav Matches / Heroes / Dashboard / Settings; import/scan/download moved to the Matches page (download appears when the search is an unknown match id) | Owner's mockups. |
 | Role label | guessed from lane + LH@10: mid → Мид, safe lane ≥25 LH → Керри, off lane ≥18 LH → Оффлейн, otherwise Саппорт; jungle/roam | No role data in replays. |
 | Death "no vision" | no allied observer alive within 1400 units of the death spot | Observer day vision radius; sentries ignored. |
+| Map background | bundled 7.41 game minimap (`frontend/public/minimap-7.41.jpg`, from Liquipedia's game-asset copy), image covers world [-10400, 10300], calibrated on fountains/ancients/towers/Roshan of a 7.41 replay; user picture in settings still overrides; schematic only if loading fails | Owner asked for the real map (2026-11). Needs a refresh when a patch reshapes the map. |
 | Map zones | `stats.Region`: base / river (top·mid·bot) / lane + side / jungle + side, coarse geometry; used for deaths, idle periods, hero death top-zones | Human-readable locations; no tower-level precision. |
 | OpenDota match extras | after parsing, `/matches/{id}` is fetched in the background (1 req/1.1 s) and `position_est`, `rank_tier`, `party_size`, `benchmarks` are stored in `od_players` (keyed by match + hero, no FK so re-parse keeps them). Role = OpenDota position when known, else own lane heuristic. Unparsed / failed fetches retry after 6 h; switch-off in settings | Owner: "тянуть и оттуда и оттуда" — replay stays the primary source, OpenDota fills what a replay can't know. |
 | Per-replay parse progress | bytes read from the .dem, `library:parsing` event, ≥2% steps | Cheap and monotonic; no manta hook needed. |
@@ -63,7 +64,8 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Domain extraction v1: match meta, players, my player detection, per-N-second time series (gold, xp, net worth, LH/DN, position), deaths, kills
 - [x] Match list: hero, result, KDA, duration, date, mode, parse status
 - [x] Match page tabs: Overview, Farm (NW/GPM/XPM charts: me / team avg / lane opponent), Deaths (list + points on map)
-- [x] Map: world coords from cell+vec, schematic map (lanes, river) or user background
+- [x] Map: world coords from cell+vec, bundled game minimap (schematic fallback) or user background
+- [x] Hero portraits instead of initials (Steam CDN, disk cache)
 - [x] Constants (hero/item/ability names) from OpenDota, cached
 - [x] Auto-update: updater wired to GitHub Releases + release workflow (win/linux)
 - [x] README: build on Windows & Fedora, dev mode
