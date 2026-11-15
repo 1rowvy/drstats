@@ -10,6 +10,9 @@ import type { Events } from "@wailsio/runtime";
 import type * as main$0 from "../../../../1rowvy/drstats/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as autodl$0 from "../../../../1rowvy/drstats/internal/autodl/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as download$0 from "../../../../1rowvy/drstats/internal/download/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -21,6 +24,7 @@ import type * as library$0 from "../../../../1rowvy/drstats/internal/library/mod
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "autodl:state": autodl$0.State;
             "constants:updated": void;
             "download:progress": download$0.Progress;
             "library:imported": main$0.ImportResult;

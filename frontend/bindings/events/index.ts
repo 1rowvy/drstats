@@ -9,6 +9,11 @@ import type {} from "../github.com/wailsapp/wails/v3/internal/eventdata.js";
 import "../github.com/wailsapp/wails/v3/internal/eventcreate.js";
 
 /**
+ * Name of the custom event "autodl:state".
+ */
+export const AutodlState = "autodl:state";
+
+/**
  * Name of the custom event "constants:updated".
  */
 export const ConstantsUpdated = "constants:updated";

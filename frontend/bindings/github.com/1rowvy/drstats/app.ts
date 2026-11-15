@@ -12,6 +12,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as autodl$0 from "./internal/autodl/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as constants$0 from "./internal/constants/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -29,6 +32,13 @@ import * as store$0 from "./internal/store/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
+
+/**
+ * AutoDownloadState returns the state of the replay auto-download.
+ */
+export function AutoDownloadState(): $CancellablePromise<autodl$0.State> {
+    return $Call.ByID(1717144011);
+}
 
 /**
  * CheckForUpdates opens the updater window and runs the check/install flow.

@@ -52,4 +52,21 @@ export interface Settings {
      * MapImage is an optional user-supplied minimap background (png/jpg).
      */
     "map_image": string;
+
+    /**
+     * AutoDownload fetches the replays of recent games (OpenDota history)
+     * that have no replay yet. Off by default.
+     */
+    "auto_download": boolean;
+
+    /**
+     * ReplayKeep is what happens to auto-downloaded replays after parsing:
+     * KeepCap (default), KeepDelete or KeepAll.
+     */
+    "replay_keep": string;
+
+    /**
+     * ReplayCapGB is the storage cap for auto-downloaded replays (KeepCap).
+     */
+    "replay_cap_gb": number;
 }

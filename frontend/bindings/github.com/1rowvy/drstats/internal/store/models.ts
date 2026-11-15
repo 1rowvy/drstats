@@ -93,9 +93,14 @@ export interface MatchRow {
     "error": string;
 
     /**
-     * parsed by an older parser version
+     * parsed by an older parser version (and still re-parsable)
      */
     "stale": boolean;
+
+    /**
+     * replay file removed by the storage cap
+     */
+    "pruned": boolean;
     "mtime": number;
 
     /**
