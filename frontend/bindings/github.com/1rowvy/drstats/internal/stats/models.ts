@@ -137,6 +137,21 @@ export interface Dashboard {
 }
 
 /**
+ * DeathCtx describes the surroundings of a death.
+ */
+export interface DeathCtx {
+    /**
+     * map zone key, see Region
+     */
+    "region": string;
+
+    /**
+     * an allied observer ward saw the spot
+     */
+    "vision": boolean;
+}
+
+/**
  * Farm are the series for the Farm tab.
  */
 export interface Farm {
@@ -367,6 +382,11 @@ export interface IdlePeriod {
      */
     "x": number;
     "y": number;
+
+    /**
+     * Region is the map zone of that position (see Region).
+     */
+    "region": string;
 }
 
 /**
@@ -491,6 +511,12 @@ export interface MatchView {
     "opponent": number;
     "farm": Farm;
     "deaths": parser$0.Death[] | null;
+
+    /**
+     * DeathCtx is aligned with Deaths: where it happened and whether the
+     * victim's team had an observer ward covering the spot.
+     */
+    "death_ctx": DeathCtx[] | null;
 
     /**
      * map coordinate bounds [min, max]

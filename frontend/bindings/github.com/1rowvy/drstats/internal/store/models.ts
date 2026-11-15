@@ -19,6 +19,11 @@ export interface DeathPoint {
     "t": number;
     "x": number;
     "y": number;
+
+    /**
+     * map zone key, filled by stats
+     */
+    "region": string;
 }
 
 /**
@@ -27,6 +32,11 @@ export interface DeathPoint {
 export interface ItemTiming {
     "item": string;
     "avg": number;
+
+    /**
+     * best (earliest) first purchase
+     */
+    "min": number;
     "n": number;
 }
 
@@ -79,4 +89,18 @@ export interface MatchRow {
     "deaths": number;
     "assists": number;
     "net_worth": number;
+    "name": string;
+    "last_hits": number;
+    "denies": number;
+    "gpm": number;
+
+    /**
+     * last hits at 10:00, nil without a sample
+     */
+    "lh10": number | null;
+
+    /**
+     * Lane is the detected laning-stage lane; filled by the caller from LaneEarly.
+     */
+    "lane": string;
 }

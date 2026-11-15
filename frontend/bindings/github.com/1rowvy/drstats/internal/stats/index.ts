@@ -7,6 +7,7 @@ export type {
     Amount,
     Bucket,
     Dashboard,
+    DeathCtx,
     Farm,
     Fights,
     Filter,

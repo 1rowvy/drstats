@@ -226,6 +226,7 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter) (*Dashboard, er
 		}
 		for _, p := range deaths {
 			if inFilter[p.MatchID] {
+				p.Region = Region(p.X, p.Y)
 				d.Deaths = append(d.Deaths, p)
 			}
 		}

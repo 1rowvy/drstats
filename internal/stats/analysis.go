@@ -113,6 +113,8 @@ type IdlePeriod struct {
 	To   float64 `json:"to"`
 	X    float64 `json:"x"` // position in the middle of the period
 	Y    float64 `json:"y"`
+	// Region is the map zone of that position (see Region).
+	Region string `json:"region"`
 }
 
 // Gold is the Gold tab: sources, farm-over-time and idle periods.
@@ -146,7 +148,7 @@ func IdlePeriods(ss []parser.Sample, threshold float64) []IdlePeriod {
 		}
 		if ss[end].T-ss[start].T >= threshold {
 			mid := ss[(start+end)/2]
-			out = append(out, IdlePeriod{From: ss[start].T, To: ss[end].T, X: mid.X, Y: mid.Y})
+			out = append(out, IdlePeriod{From: ss[start].T, To: ss[end].T, X: mid.X, Y: mid.Y, Region: Region(mid.X, mid.Y)})
 		}
 		start = -1
 	}

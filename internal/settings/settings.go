@@ -23,6 +23,8 @@ type Settings struct {
 	// Heuristics thresholds (used by later analyses).
 	HitWindowSec  float64 `json:"hit_window_sec"` // ability "hit": damage/debuff within N s of the cast
 	IdleThreshold float64 `json:"idle_threshold"` // seconds without farm/fight considered idle
+	// LH10Goal is the personal last-hits-at-10:00 target shown on the match and list pages.
+	LH10Goal int `json:"lh10_goal"`
 	// MapImage is an optional user-supplied minimap background (png/jpg).
 	MapImage string `json:"map_image"`
 }
@@ -34,6 +36,7 @@ func Defaults() Settings {
 		Parallelism:   2,
 		HitWindowSec:  1.0,
 		IdleThreshold: 20,
+		LH10Goal:      70,
 	}
 }
 
@@ -53,6 +56,9 @@ func (s *Settings) Normalize() {
 	}
 	if s.IdleThreshold <= 0 {
 		s.IdleThreshold = 20
+	}
+	if s.LH10Goal <= 0 {
+		s.LH10Goal = 70
 	}
 }
 

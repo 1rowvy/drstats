@@ -21,6 +21,7 @@ declare module "@wailsio/runtime" {
             "constants:updated": void;
             "download:progress": download$0.Progress;
             "library:imported": main$0.ImportResult;
+            "library:parsing": library$0.ParseProgress;
             "library:progress": library$0.Progress;
             "library:replay": library$0.ReplayEvent;
         }

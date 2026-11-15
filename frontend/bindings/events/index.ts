@@ -24,6 +24,11 @@ export const DownloadProgress = "download:progress";
 export const LibraryImported = "library:imported";
 
 /**
+ * Name of the custom event "library:parsing".
+ */
+export const LibraryParsing = "library:parsing";
+
+/**
  * Name of the custom event "library:progress".
  */
 export const LibraryProgress = "library:progress";

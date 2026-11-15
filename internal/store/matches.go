@@ -498,6 +498,7 @@ func (s *Store) events(m *parser.Match, matchID int64) error {
 type ItemTiming struct {
 	Item string  `json:"item"`
 	Avg  float64 `json:"avg"`
+	Min  float64 `json:"min"` // best (earliest) first purchase
 	N    int     `json:"n"`
 }
 
@@ -505,7 +506,7 @@ type ItemTiming struct {
 // the hero over all stored matches except excludeMatch.
 func (s *Store) ItemTimings(accountID uint32, heroID int, excludeMatch int64) ([]ItemTiming, error) {
 	rows, err := s.db.Query(`
-		SELECT key, AVG(first_t), COUNT(*) FROM (
+		SELECT key, AVG(first_t), MIN(first_t), COUNT(*) FROM (
 			SELECT e.match_id, e.key, MIN(e.t) AS first_t
 			FROM events e JOIN players p ON p.match_id = e.match_id AND p.player_id = e.player_id
 			WHERE e.type = ? AND p.account_id = ? AND p.hero_id = ? AND e.match_id != ?
@@ -518,7 +519,7 @@ func (s *Store) ItemTimings(accountID uint32, heroID int, excludeMatch int64) ([
 	var out []ItemTiming
 	for rows.Next() {
 		var it ItemTiming
-		if err := rows.Scan(&it.Item, &it.Avg, &it.N); err != nil {
+		if err := rows.Scan(&it.Item, &it.Avg, &it.Min, &it.N); err != nil {
 			return nil, err
 		}
 		out = append(out, it)

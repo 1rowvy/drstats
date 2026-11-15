@@ -32,6 +32,11 @@ export interface Settings {
     "idle_threshold": number;
 
     /**
+     * LH10Goal is the personal last-hits-at-10:00 target shown on the match and list pages.
+     */
+    "lh10_goal": number;
+
+    /**
      * MapImage is an optional user-supplied minimap background (png/jpg).
      */
     "map_image": string;

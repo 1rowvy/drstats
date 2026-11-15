@@ -122,6 +122,7 @@ type DeathPoint struct {
 	T       float64 `json:"t"`
 	X       float64 `json:"x"`
 	Y       float64 `json:"y"`
+	Region  string  `json:"region"` // map zone key, filled by stats
 }
 
 // DeathPoints returns all positioned deaths of the account (heroID 0 = any hero).

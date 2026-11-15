@@ -130,3 +130,57 @@ func ComputeTimeShare(samples []parser.Sample, team int, lane string) TimeShare 
 	}
 	return ts
 }
+
+// River polyline (world units), top-left to bottom-right; same shape as the
+// schematic map in the UI.
+var river = [][2]float64{{-7400, 4600}, {-3000, 1600}, {-600, -400}, {2000, -2600}, {5000, -7400}}
+
+const riverHalfWidth = 750.0
+
+func distToSegment(x, y float64, a, b [2]float64) float64 {
+	dx, dy := b[0]-a[0], b[1]-a[1]
+	t := ((x-a[0])*dx + (y-a[1])*dy) / (dx*dx + dy*dy)
+	t = math.Max(0, math.Min(1, t))
+	return math.Hypot(x-(a[0]+t*dx), y-(a[1]+t*dy))
+}
+
+func inRiver(x, y float64) bool {
+	for i := 1; i < len(river); i++ {
+		if distToSegment(x, y, river[i-1], river[i]) < riverHalfWidth {
+			return true
+		}
+	}
+	return false
+}
+
+// side returns which team's half of the map a point is on ("radiant" / "dire").
+func side(x, y float64) string {
+	if x+y < -800 {
+		return "radiant"
+	}
+	return "dire"
+}
+
+// Region names a map zone as a key the UI turns into a label:
+// "base:<side>", "river:<top|mid|bot>", "lane:<top|mid|bot>:<side>", "jungle:<side>".
+// Coarse geometry, meant for human-readable death/idle locations.
+func Region(x, y float64) string {
+	switch {
+	case inBase(parser.TeamRadiant, x, y):
+		return "base:radiant"
+	case inBase(parser.TeamDire, x, y):
+		return "base:dire"
+	case inRiver(x, y):
+		part := LaneMid
+		if x < -2600 {
+			part = LaneTop
+		} else if x > 1800 {
+			part = LaneBot
+		}
+		return "river:" + part
+	}
+	if l := laneAt(x, y); l != "" {
+		return "lane:" + l + ":" + side(x, y)
+	}
+	return "jungle:" + side(x, y)
+}

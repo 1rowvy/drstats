@@ -51,6 +51,9 @@ type MatchView struct {
 	Opponent int            `json:"opponent"` // lane opponent player id, -1 if unknown
 	Farm     Farm           `json:"farm"`
 	Deaths   []parser.Death `json:"deaths"`
+	// DeathCtx is aligned with Deaths: where it happened and whether the
+	// victim's team had an observer ward covering the spot.
+	DeathCtx []DeathCtx `json:"death_ctx"`
 	World    [2]float64     `json:"world"` // map coordinate bounds [min, max]
 
 	// Analyses of the focused player (zero values when Focus < 0).
@@ -94,6 +97,8 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 			}
 		}
 	}
+
+	v.DeathCtx = deathContext(players, deaths, m.Wards)
 
 	byPID := splitSeries(series)
 	if v.Focus >= 0 {
@@ -266,6 +271,33 @@ func average(axis []float64, pids []int, line func(int) Line) Line {
 		if counts[i] > 0 {
 			v := math.Round(sums[i] / float64(counts[i]))
 			out[i] = &v
+		}
+	}
+	return out
+}
+
+// DeathCtx describes the surroundings of a death.
+type DeathCtx struct {
+	Region string `json:"region"` // map zone key, see Region
+	Vision bool   `json:"vision"` // an allied observer ward saw the spot
+}
+
+// obsRadius is the observer ward vision radius (day), world units.
+const obsRadius = 1400.0
+
+func deathContext(players []parser.Player, deaths []parser.Death, wards []parser.Ward) []DeathCtx {
+	out := make([]DeathCtx, len(deaths))
+	for i, d := range deaths {
+		if !d.HasPos {
+			continue
+		}
+		out[i].Region = Region(d.X, d.Y)
+		team := teamOf(players, d.VictimPID)
+		for _, w := range wards {
+			if !w.Sentry && w.Team == team && w.T <= d.T && d.T <= w.End && math.Hypot(w.X-d.X, w.Y-d.Y) <= obsRadius {
+				out[i].Vision = true
+				break
+			}
 		}
 	}
 	return out
