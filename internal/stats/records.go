@@ -24,6 +24,7 @@ type Record struct {
 	HeroName string  `json:"hero_name"`
 	EndTime  int64   `json:"end_time"`
 	Win      bool    `json:"win"`
+	OpenDota bool    `json:"opendota"` // no replay
 }
 
 // Streak is the longest run of wins.
@@ -61,7 +62,7 @@ func buildExtras(games []Game, now time.Time) Extras {
 	consider := func(key string, v float64, g *Game) {
 		r := best[key]
 		if r == nil || v > r.Value {
-			best[key] = &Record{Key: key, Value: v, MatchID: g.MatchID, HeroName: g.HeroName, EndTime: g.EndTime, Win: g.Win}
+			best[key] = &Record{Key: key, Value: v, MatchID: g.MatchID, HeroName: g.HeroName, EndTime: g.EndTime, Win: g.Win, OpenDota: g.OpenDota}
 		}
 	}
 	run := Streak{}

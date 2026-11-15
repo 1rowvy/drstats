@@ -42,6 +42,7 @@ func init() {
 	application.RegisterEvent[application.Void](EventConstants)
 	application.RegisterEvent[download.Progress](EventDownload)
 	application.RegisterEvent[enrich.Updated](enrich.EventUpdated)
+	application.RegisterEvent[enrich.HistoryUpdated](enrich.EventHistory)
 }
 
 // App is the single service bound to the frontend.
@@ -52,6 +53,8 @@ type App struct {
 	st    *store.Store
 	lib   *library.Library
 	od    *enrich.Enricher
+	hist  *enrich.History
+	bg    context.Context
 	stop  context.CancelFunc
 	names *constants.Service
 
@@ -86,7 +89,9 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 
 	a.names = constants.New(a.st)
 	emit := func(name string, data any) { a.app.Event.Emit(name, data) }
-	a.od = enrich.New(a.st, opendota.New(), emit, func() bool { return !a.settings().OpenDotaOff })
+	odEnabled := func() bool { return !a.settings().OpenDotaOff }
+	a.od = enrich.New(a.st, opendota.New(), emit, odEnabled)
+	a.hist = enrich.NewHistory(a.st, opendota.New(), emit, odEnabled)
 	a.lib = library.New(a.st, func(name string, data any) {
 		// A freshly parsed match gets its OpenDota extras right away.
 		if ev, ok := data.(library.ReplayEvent); ok && ev.Status == store.StatusDone {
@@ -96,7 +101,9 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 	})
 	bg, cancel := context.WithCancel(context.Background())
 	a.stop = cancel
+	a.bg = bg
 	go a.od.Run(bg)
+	go a.hist.Loop(bg, a.accountID)
 	go func() {
 		if _, err := a.od.Backfill(false); err != nil {
 			slog.Warn("opendota backfill", "err", err)
@@ -204,6 +211,9 @@ func (a *App) SaveSettings(s settings.Settings) (settings.Settings, error) {
 	if old.OpenDotaOff && !s.OpenDotaOff {
 		go a.od.Backfill(false)
 	}
+	if (old.OpenDotaOff && !s.OpenDotaOff) || s.SteamID != old.SteamID {
+		go a.hist.Sync(a.bg, a.accountID(), false)
+	}
 	if s.ReplayDir != old.ReplayDir {
 		go a.ScanReplayDir()
 	}
@@ -217,6 +227,19 @@ func (a *App) FetchOpenDota() (int, error) {
 		return 0, errors.New("OpenDota выключена в настройках")
 	}
 	return a.od.Backfill(true)
+}
+
+// SyncHistory fetches the new matches of the OpenDota history now (the
+// dashboard's «Все игры» source). It returns when the sync is done.
+func (a *App) SyncHistory() error {
+	if a.settings().OpenDotaOff {
+		return errors.New("OpenDota выключена в настройках")
+	}
+	id := a.accountID()
+	if id == 0 {
+		return errors.New("сначала укажи Steam ID")
+	}
+	return a.hist.Sync(a.bg, id, true)
 }
 
 // DefaultReplayDir returns the OS default replay folder.
@@ -288,7 +311,11 @@ func (a *App) Match(matchID int64, focus int) (*stats.MatchView, error) {
 // Dashboard returns aggregates over "my" matches under a filter (hero page:
 // filter by hero).
 func (a *App) Dashboard(f stats.Filter) (*stats.Dashboard, error) {
-	return stats.BuildDashboard(a.st, a.accountID(), f)
+	var byID map[int]string
+	if n, err := a.names.Names(); err == nil {
+		byID = n.HeroByID
+	}
+	return stats.BuildDashboard(a.st, a.accountID(), f, byID)
 }
 
 // Progress returns the parse queue state.

@@ -18,6 +18,7 @@ type Filter struct {
 	Result string `json:"result"` // "win" / "loss"
 	Mode   int    `json:"mode"`   // game_mode
 	Lane   string `json:"lane"`   // detected lane
+	Source string `json:"source"` // SourceReplays / SourceAll
 }
 
 // Game is a GameRow with derived values.
@@ -25,6 +26,8 @@ type Game struct {
 	store.GameRow
 	Win  bool   `json:"win"`
 	Lane string `json:"lane"`
+	// OpenDota marks a match known only from the OpenDota history (no replay).
+	OpenDota bool `json:"opendota"`
 }
 
 // Metric definitions for averages, trends and habits.
@@ -39,6 +42,16 @@ func perMin(v int, g *Game) (float64, bool) {
 		return 0, false
 	}
 	return float64(v) / (g.Duration / 60), true
+}
+
+// replayOnly wraps a metric that only parsed replays have.
+func replayOnly(v func(g *Game) float64) func(g *Game) (float64, bool) {
+	return func(g *Game) (float64, bool) {
+		if g.OpenDota {
+			return 0, false
+		}
+		return v(g), true
+	}
 }
 
 func intp(p *int) (float64, bool) {
@@ -60,18 +73,23 @@ var metrics = []metricDef{
 	{"lh10", true, func(g *Game) (float64, bool) { return intp(g.LH10) }},
 	{"dn10", true, func(g *Game) (float64, bool) { return intp(g.DN10) }},
 	{"nw10", true, func(g *Game) (float64, bool) { return intp(g.NW10) }},
-	{"deaths10", false, func(g *Game) (float64, bool) { return float64(g.Deaths10), true }},
+	{"deaths10", false, replayOnly(func(g *Game) float64 { return float64(g.Deaths10) })},
 	{"kp", true, func(g *Game) (float64, bool) {
 		if g.TeamKills == 0 {
 			return 0, false
 		}
 		return math.Min(1, float64(g.Kills+g.Assists)/float64(g.TeamKills)), true
 	}},
-	{"hero_dmg_pm", true, func(g *Game) (float64, bool) { return perMin(g.HeroDamage, g) }},
+	{"hero_dmg_pm", true, func(g *Game) (float64, bool) {
+		if g.OpenDota && g.HeroDamage == 0 { // OpenDota has no damage for old matches
+			return 0, false
+		}
+		return perMin(g.HeroDamage, g)
+	}},
 	{"tower_dmg", true, func(g *Game) (float64, bool) { return float64(g.TowerDamage), true }},
-	{"gold_lost", false, func(g *Game) (float64, bool) { return float64(g.GoldLost), true }},
-	{"wards", true, func(g *Game) (float64, bool) { return float64(g.ObsPlaced + g.SenPlaced), true }},
-	{"stacks", true, func(g *Game) (float64, bool) { return float64(g.CampsStacked), true }},
+	{"gold_lost", false, replayOnly(func(g *Game) float64 { return float64(g.GoldLost) })},
+	{"wards", true, replayOnly(func(g *Game) float64 { return float64(g.ObsPlaced + g.SenPlaced) })},
+	{"stacks", true, replayOnly(func(g *Game) float64 { return float64(g.CampsStacked) })},
 }
 
 // MetricAvg is an average of one metric.
@@ -97,6 +115,7 @@ type TrendGame struct {
 	EndTime  int64               `json:"end_time"`
 	Win      bool                `json:"win"`
 	HeroName string              `json:"hero_name"`
+	OpenDota bool                `json:"opendota"` // no replay
 	Values   map[string]*float64 `json:"values"`
 }
 
@@ -153,18 +172,36 @@ type Dashboard struct {
 	Total     int                `json:"total"`   // matches before filtering
 	Unknown   bool               `json:"unknown"` // no Steam ID configured
 	Extras    Extras             `json:"extras"`
+	// Replays is how many of the filtered matches have a parsed replay
+	// (replay-only blocks are computed over those).
+	Replays int `json:"replays"`
+	// History is the OpenDota history sync state (nil without a Steam ID).
+	History *store.HistorySync `json:"history"`
 }
 
 func worldBounds() [2]float64 { return [2]float64{parser.WorldMin, parser.WorldMax} }
 
-// BuildDashboard aggregates the account's matches under a filter.
-func BuildDashboard(st *store.Store, accountID uint32, f Filter) (*Dashboard, error) {
+// BuildDashboard aggregates the account's matches under a filter. heroByID
+// names the heroes of OpenDota history matches (constants hero_by_id).
+func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[int]string) (*Dashboard, error) {
 	d := &Dashboard{Filter: f, Averages: []MetricAvg{}, ByHero: []Bucket{}, ByWeekday: []Bucket{}, ByHour: []Bucket{},
 		ByLane: []Bucket{}, Trend: []TrendGame{}, Habits: []Habit{}, Recent: []Game{}, Deaths: []store.DeathPoint{},
 		Heroes: []HeroOption{}, Modes: []int{}, World: worldBounds(), Unknown: accountID == 0}
 	all, err := loadGames(st, accountID)
 	if err != nil {
 		return nil, err
+	}
+	if accountID != 0 {
+		hist, err := st.History(accountID)
+		if err != nil {
+			return nil, err
+		}
+		state, err := st.HistoryState(accountID)
+		if err != nil {
+			return nil, err
+		}
+		d.History = &state
+		all = mergeHistory(all, hist, HeroNamer(heroByID), f.Source == SourceAll)
 	}
 	d.Total = len(all)
 	heroes := map[int]*HeroOption{}
@@ -192,6 +229,9 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter) (*Dashboard, er
 	inFilter := map[int64]bool{}
 	for i := range games {
 		inFilter[games[i].MatchID] = true
+		if !games[i].OpenDota {
+			d.Replays++
+		}
 		if games[i].Win {
 			d.Wins++
 		}
@@ -396,7 +436,7 @@ func trend(games []Game) []TrendGame {
 	out := []TrendGame{}
 	for i := start; i < len(games); i++ {
 		g := &games[i]
-		tg := TrendGame{MatchID: g.MatchID, EndTime: g.EndTime, Win: g.Win, HeroName: g.HeroName, Values: map[string]*float64{}}
+		tg := TrendGame{MatchID: g.MatchID, EndTime: g.EndTime, Win: g.Win, HeroName: g.HeroName, OpenDota: g.OpenDota, Values: map[string]*float64{}}
 		for _, m := range metrics {
 			if v, ok := m.Value(g); ok {
 				tg.Values[m.Key] = &v
