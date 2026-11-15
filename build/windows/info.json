@@ -1,0 +1,17 @@
+{
+	"fixed": {
+		"file_version": "0.1.0",
+		"product_version": "0.1.0"
+	},
+	"info": {
+		"0409": {
+			"FileVersion": "0.1.0",
+			"ProductVersion": "0.1.0",
+			"CompanyName": "1rowvy",
+			"FileDescription": "Dota 2 replay stats",
+			"LegalCopyright": "© 2026 1rowvy",
+			"ProductName": "drstats",
+			"Comments": "This is a comment"
+		}
+	}
+}

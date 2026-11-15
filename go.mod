@@ -4,11 +4,18 @@ go 1.26.2
 
 require (
 	github.com/dotabuff/manta v1.5.2
+	github.com/wailsapp/wails/v3 v3.1.0
 	google.golang.org/protobuf v1.36.11
 )
 
 require (
-	github.com/davecgh/go-spew v1.1.0 // indirect
+	github.com/coder/websocket v1.8.14 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/term v0.46.0 // indirect
 )

@@ -21,3 +21,7 @@ frontend/dist/
 .idea/
 .vscode/
 .DS_Store
+
+# Wails / Task
+.task/
+.wails/

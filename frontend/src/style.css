@@ -1,0 +1,38 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --bg-1: #161920;
+  --bg-2: #1d212a;
+  --bg-3: #262b36;
+  --border: #2c3240;
+  --text: #e6e8ee;
+  --text-dim: #9aa3b5;
+  --text-faint: #6b7385;
+  --accent: #5b9cff;
+  --radiant: #5fd17a;
+  --dire: #ff6b5b;
+  --win: #5fd17a;
+  --loss: #ff6b5b;
+  --warn: #f2c14e;
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); overflow: hidden; }
+h1 { font-size: 20px; font-weight: 600; margin: 0 0 16px; }
+h2 { font-size: 16px; font-weight: 600; margin: 0 0 12px; }
+a { color: var(--accent); }
+
+.shell { display: flex; height: 100%; }
+.sidebar {
+  width: 200px; flex-shrink: 0; background: var(--bg-1);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 16px 0;
+}
+.logo { font-weight: 700; font-size: 18px; padding: 0 20px 16px; letter-spacing: .5px; }
+.version { margin-top: auto; padding: 0 20px; color: var(--text-faint); font-size: 12px; }
+.content { flex: 1; overflow: auto; padding: 24px 28px; }
