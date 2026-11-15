@@ -7,7 +7,10 @@ import (
 	"embed"
 	"log"
 	"log/slog"
+	"path/filepath"
 	"time"
+
+	"github.com/1rowvy/drstats/internal/heroimg"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -26,12 +29,18 @@ var assets embed.FS
 
 func main() {
 	svc := &App{}
+	dir, err := dataDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	heroes := heroimg.New(filepath.Join(dir, "cache", "heroes"))
 	app := application.New(application.Options{
 		Name:        "drstats",
 		Description: "Dota 2 replay stats",
 		Services:    []application.Service{application.NewService(svc)},
 		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(assets),
+			Handler:    application.AssetFileServerFS(assets),
+			Middleware: heroes.Middleware,
 		},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,

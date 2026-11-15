@@ -185,6 +185,7 @@ tr.minor td { color: var(--text-dim); }
   display: inline-flex; align-items: center; justify-content: center;
   color: #171a20; font-weight: 700; flex-shrink: 0; letter-spacing: .3px;
 }
+.hero-img { object-fit: cover; object-position: center; background: #1c2029; }
 .hero-name { display: inline-flex; align-items: center; gap: 10px; }
 .hero-name-text { display: flex; flex-direction: column; line-height: 1.2; }
 .hero-name-text b { font-weight: 600; font-size: 13px; }

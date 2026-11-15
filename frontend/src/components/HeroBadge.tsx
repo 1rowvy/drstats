@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNames } from "../names";
 
 // Muted pastel tiles; the colour is stable per hero (hash of the npc name).
@@ -15,17 +16,39 @@ export function initials(name: string): string {
   return s.toUpperCase();
 }
 
-/** Hero "icon": initials on a pastel tile (no network images). */
+/** Heroes whose portrait failed to load this session (offline, unknown hero). */
+const broken = new Set<string>();
+
+/**
+ * Hero icon: Valve portrait (cached on disk by the backend, see internal/heroimg),
+ * cropped to a square; initials on a pastel tile while unavailable.
+ */
 export function HeroBadge({ npc, size = 28 }: { npc: string; size?: number }) {
   const names = useNames();
   const name = names.hero(npc);
+  const short = npc.replace(/^npc_dota_hero_/, "");
+  const [failed, setFailed] = useState(() => !short || broken.has(short));
+  const radius = Math.max(5, size * 0.2);
+  if (!failed) {
+    return (
+      <img
+        className="hero-badge hero-img"
+        src={`/heroimg/${short}.png`}
+        alt={name}
+        title={name}
+        loading="lazy"
+        style={{ width: size, height: size, borderRadius: radius }}
+        onError={() => { broken.add(short); setFailed(true); }}
+      />
+    );
+  }
   return (
     <span
       className="hero-badge"
       title={name}
       style={{
         width: size, height: size, fontSize: Math.max(9, size * 0.34),
-        borderRadius: Math.max(5, size * 0.2),
+        borderRadius: radius,
         background: npc ? PALETTE[hash(npc) % PALETTE.length] : "#4a5266",
       }}
     >
