@@ -221,6 +221,10 @@ func (a *App) MapImage() string {
 // ListMatches returns all replays with summaries for "me".
 func (a *App) ListMatches() ([]store.MatchRow, error) {
 	rows, err := a.st.ListMatches(a.accountID())
+	for i := range rows {
+		rows[i].Lane = stats.DetectLane(rows[i].LaneEarly)
+		rows[i].LaneEarly = nil
+	}
 	if rows == nil {
 		rows = []store.MatchRow{}
 	}

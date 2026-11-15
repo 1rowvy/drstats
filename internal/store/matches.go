@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -261,6 +262,14 @@ type MatchRow struct {
 	Deaths   int    `json:"deaths"`
 	Assists  int    `json:"assists"`
 	NetWorth int    `json:"net_worth"`
+	Name     string `json:"name"`
+	LastHits int    `json:"last_hits"`
+	Denies   int    `json:"denies"`
+	GPM      int    `json:"gpm"`
+	LH10     *int   `json:"lh10"` // last hits at 10:00, nil without a sample
+	// Lane is the detected laning-stage lane; filled by the caller from LaneEarly.
+	Lane      string          `json:"lane"`
+	LaneEarly []parser.Sample `json:"-"`
 }
 
 // ListMatches returns all replays (newest first) with match summaries and the
@@ -270,10 +279,12 @@ func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 	rows, err := s.db.Query(`
 		SELECT r.id, r.path, r.status, r.error, r.parser_version, r.mtime,
 		       m.match_id, m.game_mode, m.lobby_type, m.duration, m.end_time, m.winner,
-		       p.player_id, p.team, p.hero_id, p.hero_name, p.kills, p.deaths, p.assists, p.net_worth
+		       p.player_id, p.team, p.hero_id, p.hero_name, p.kills, p.deaths, p.assists, p.net_worth,
+		       p.name, p.last_hits, p.denies, p.total_gold, s.last_hits
 		FROM replays r
 		LEFT JOIN matches m ON m.replay_id = r.id
 		LEFT JOIN players p ON p.match_id = m.match_id AND p.account_id = ? AND ? != 0
+		LEFT JOIN series s ON s.match_id = p.match_id AND s.player_id = p.player_id AND s.t = 600
 		WHERE m.match_id IS NOT NULL OR r.status != 'done'
 		ORDER BY COALESCE(m.end_time, r.mtime) DESC`, accountID, accountID)
 	if err != nil {
@@ -287,10 +298,12 @@ func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 		var matchID, mode, lobby, endTime, winner sql.NullInt64
 		var dur sql.NullFloat64
 		var pid, team, heroID, k, d, a, nw sql.NullInt64
-		var hero sql.NullString
+		var hero, name sql.NullString
+		var lh, dn, gold, lh10 sql.NullInt64
 		if err := rows.Scan(&r.ReplayID, &r.Path, &r.Status, &r.Error, &pv, &r.MTime,
 			&matchID, &mode, &lobby, &dur, &endTime, &winner,
-			&pid, &team, &heroID, &hero, &k, &d, &a, &nw); err != nil {
+			&pid, &team, &heroID, &hero, &k, &d, &a, &nw,
+			&name, &lh, &dn, &gold, &lh10); err != nil {
 			return nil, err
 		}
 		r.Stale = r.Status == StatusDone && pv < parser.Version
@@ -300,8 +313,50 @@ func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 			r.Found = true
 			r.PlayerID, r.Team, r.HeroID, r.HeroName = int(pid.Int64), int(team.Int64), int(heroID.Int64), hero.String
 			r.Kills, r.Deaths, r.Assists, r.NetWorth = int(k.Int64), int(d.Int64), int(a.Int64), int(nw.Int64)
+			r.Name, r.LastHits, r.Denies = name.String, int(lh.Int64), int(dn.Int64)
+			if r.Duration >= 60 {
+				r.GPM = int(math.Round(float64(gold.Int64) / (r.Duration / 60)))
+			}
+			if lh10.Valid {
+				v := int(lh10.Int64)
+				r.LH10 = &v
+			}
 		}
 		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	if accountID == 0 {
+		return out, nil
+	}
+
+	// Laning-stage positions for lane detection, in one pass.
+	index := map[int64]int{}
+	for i, r := range out {
+		if r.Found {
+			index[r.MatchID] = i
+		}
+	}
+	rows, err = s.db.Query(`
+		SELECT s.match_id, s.t, s.x, s.y, s.alive
+		FROM series s JOIN players p ON p.match_id = s.match_id AND p.player_id = s.player_id
+		WHERE p.account_id = ? AND s.t BETWEEN 60 AND 600
+		ORDER BY s.match_id, s.t`, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var smp parser.Sample
+		if err := rows.Scan(&id, &smp.T, &smp.X, &smp.Y, &smp.Alive); err != nil {
+			return nil, err
+		}
+		if i, ok := index[id]; ok {
+			out[i].LaneEarly = append(out[i].LaneEarly, smp)
+		}
 	}
 	return out, rows.Err()
 }
