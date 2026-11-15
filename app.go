@@ -15,6 +15,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"github.com/1rowvy/drstats/internal/autodl"
 	"github.com/1rowvy/drstats/internal/constants"
 	"github.com/1rowvy/drstats/internal/download"
 	"github.com/1rowvy/drstats/internal/enrich"
@@ -43,6 +44,7 @@ func init() {
 	application.RegisterEvent[download.Progress](EventDownload)
 	application.RegisterEvent[enrich.Updated](enrich.EventUpdated)
 	application.RegisterEvent[enrich.HistoryUpdated](enrich.EventHistory)
+	application.RegisterEvent[autodl.State](autodl.EventState)
 }
 
 // App is the single service bound to the frontend.
@@ -54,6 +56,7 @@ type App struct {
 	lib   *library.Library
 	od    *enrich.Enricher
 	hist  *enrich.History
+	auto  *autodl.Downloader
 	bg    context.Context
 	stop  context.CancelFunc
 	names *constants.Service
@@ -91,19 +94,35 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 	emit := func(name string, data any) { a.app.Event.Emit(name, data) }
 	odEnabled := func() bool { return !a.settings().OpenDotaOff }
 	a.od = enrich.New(a.st, opendota.New(), emit, odEnabled)
-	a.hist = enrich.NewHistory(a.st, opendota.New(), emit, odEnabled)
+	a.hist = enrich.NewHistory(a.st, opendota.New(), func(name string, data any) {
+		emit(name, data)
+		a.auto.Wake() // new history matches may lack a replay
+	}, odEnabled)
 	a.lib = library.New(a.st, func(name string, data any) {
-		// A freshly parsed match gets its OpenDota extras right away.
+		// A freshly parsed match gets its OpenDota extras right away, and a
+		// parsed auto-download may now be removed by the storage cap.
 		if ev, ok := data.(library.ReplayEvent); ok && ev.Status == store.StatusDone {
 			a.od.Queue(ev.MatchID)
+			go a.prune()
 		}
 		emit(name, data)
 	})
+	a.auto = autodl.New(a.st, download.New(nil), filepath.Join(dir, "replays", "auto"),
+		func(path string) error { _, err := a.lib.Import([]string{path}); return err },
+		emit,
+		func() bool { s := a.settings(); return s.AutoDownload && !s.OpenDotaOff },
+		a.accountID,
+		func() autodl.Policy {
+			s := a.settings()
+			return autodl.Policy{Keep: s.ReplayKeep, CapBytes: s.CapBytes()}
+		})
 	bg, cancel := context.WithCancel(context.Background())
 	a.stop = cancel
 	a.bg = bg
 	go a.od.Run(bg)
 	go a.hist.Loop(bg, a.accountID)
+	go a.auto.Run(bg)
+	go a.prune()
 	go func() {
 		if _, err := a.od.Backfill(false); err != nil {
 			slog.Warn("opendota backfill", "err", err)
@@ -214,6 +233,12 @@ func (a *App) SaveSettings(s settings.Settings) (settings.Settings, error) {
 	if (old.OpenDotaOff && !s.OpenDotaOff) || s.SteamID != old.SteamID {
 		go a.hist.Sync(a.bg, a.accountID(), false)
 	}
+	if s.AutoDownload != old.AutoDownload || s.SteamID != old.SteamID || s.OpenDotaOff != old.OpenDotaOff {
+		a.auto.Wake()
+	}
+	if s.ReplayKeep != old.ReplayKeep || s.ReplayCapGB != old.ReplayCapGB {
+		go a.prune()
+	}
 	if s.ReplayDir != old.ReplayDir {
 		go a.ScanReplayDir()
 	}
@@ -241,6 +266,16 @@ func (a *App) SyncHistory() error {
 	}
 	return a.hist.Sync(a.bg, id, true)
 }
+
+// prune applies the storage cap to auto-downloaded replays.
+func (a *App) prune() {
+	if _, err := a.auto.Prune(); err != nil {
+		slog.Warn("prune auto-downloaded replays", "err", err)
+	}
+}
+
+// AutoDownloadState returns the state of the replay auto-download.
+func (a *App) AutoDownloadState() (autodl.State, error) { return a.auto.State() }
 
 // DefaultReplayDir returns the OS default replay folder.
 func (a *App) DefaultReplayDir() string { return settings.DefaultReplayDir() }

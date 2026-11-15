@@ -110,6 +110,29 @@ func (c *Client) Lookup(ctx context.Context, matchID uint64) (cluster int, salt 
 	return mi.Cluster, mi.ReplaySalt, nil
 }
 
+// RequestURL is the OpenDota parse request endpoint (replaceable in tests).
+var RequestURL = "https://api.opendota.com/api/request/"
+
+// RequestParse asks OpenDota to parse a match, which also makes it fetch the
+// replay salt; Lookup succeeds a few minutes later.
+func (c *Client) RequestParse(ctx context.Context, matchID uint64) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, RequestURL+strconv.FormatUint(matchID, 10), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "drstats")
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("OpenDota parse request: HTTP %s", resp.Status)
+	}
+	return nil
+}
+
 // Fetch downloads and decompresses the replay of matchID into dir/<id>.dem
 // and returns the file path. An existing file is returned as is.
 func (c *Client) Fetch(ctx context.Context, matchID uint64, dir string) (path string, err error) {

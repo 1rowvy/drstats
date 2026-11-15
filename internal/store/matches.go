@@ -274,7 +274,7 @@ type MatchRow struct {
 	Path      string  `json:"path"`
 	Status    string  `json:"status"`
 	Error     string  `json:"error"`
-	Stale     bool    `json:"stale"` // parsed by an older parser version (and still re-parsable)
+	Stale     bool    `json:"stale"`  // parsed by an older parser version (and still re-parsable)
 	Pruned    bool    `json:"pruned"` // replay file removed by the storage cap
 	MTime     int64   `json:"mtime"`
 	Size      int64   `json:"size"`     // replay file bytes

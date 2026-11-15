@@ -33,7 +33,28 @@ type Settings struct {
 	WatchOff bool `json:"watch_off"`
 	// MapImage is an optional user-supplied minimap background (png/jpg).
 	MapImage string `json:"map_image"`
+	// AutoDownload fetches the replays of recent games (OpenDota history)
+	// that have no replay yet. Off by default.
+	AutoDownload bool `json:"auto_download"`
+	// ReplayKeep is what happens to auto-downloaded replays after parsing:
+	// KeepCap (default), KeepDelete or KeepAll.
+	ReplayKeep string `json:"replay_keep"`
+	// ReplayCapGB is the storage cap for auto-downloaded replays (KeepCap).
+	ReplayCapGB float64 `json:"replay_cap_gb"`
 }
+
+// ReplayKeep values.
+const (
+	KeepCap    = "cap"    // keep up to ReplayCapGB, oldest removed first
+	KeepDelete = "delete" // remove right after parsing
+	KeepAll    = "all"    // never remove
+)
+
+// DefaultCapGB is the default storage cap for auto-downloaded replays.
+const DefaultCapGB = 5
+
+// CapBytes is ReplayCapGB in bytes.
+func (s Settings) CapBytes() int64 { return int64(s.ReplayCapGB * (1 << 30)) }
 
 // Defaults returns the settings used on first start.
 func Defaults() Settings {
@@ -43,6 +64,8 @@ func Defaults() Settings {
 		HitWindowSec:  1.0,
 		IdleThreshold: 20,
 		LH10Goal:      70,
+		ReplayKeep:    KeepCap,
+		ReplayCapGB:   DefaultCapGB,
 	}
 }
 
@@ -65,6 +88,17 @@ func (s *Settings) Normalize() {
 	}
 	if s.LH10Goal <= 0 {
 		s.LH10Goal = 70
+	}
+	switch s.ReplayKeep {
+	case KeepCap, KeepDelete, KeepAll:
+	default:
+		s.ReplayKeep = KeepCap
+	}
+	if s.ReplayCapGB <= 0 {
+		s.ReplayCapGB = DefaultCapGB
+	}
+	if s.ReplayCapGB > 1000 {
+		s.ReplayCapGB = 1000
 	}
 }
 
