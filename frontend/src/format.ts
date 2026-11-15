@@ -129,3 +129,68 @@ export const METRICS: Record<string, { label: string; fmt: (v: number) => string
 };
 
 export const WEEKDAYS = ["", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
+const MONTHS = ["янв.", "февр.", "мар.", "апр.", "мая", "июня", "июля", "авг.", "сент.", "окт.", "нояб.", "дек."];
+
+/** Human date for lists: "Сегодня, 22:03", "Вчера, 23:41", older: "13 нояб." (+ year if not current). */
+export function relDate(unix: number, now = new Date()): string {
+  if (!unix) return "—";
+  const d = new Date(unix * 1000);
+  const hm = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff === 0) return `Сегодня, ${hm}`;
+  if (diff === 1) return `Вчера, ${hm}`;
+  const base = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return d.getFullYear() === now.getFullYear() ? base : `${base} ${d.getFullYear()}`;
+}
+
+/** Short mode label for lists: Turbo / Ranked / All Pick / … */
+export function modeShort(mode: number, lobby: number): string {
+  if (mode === 23) return "Turbo";
+  if (lobby === 7) return "Ranked";
+  return GAME_MODES[mode] ?? `Mode ${mode}`;
+}
+
+/** Guessed role from the laning-stage lane and early farm (LH@10). */
+export function roleName(lane: string, team: number, lh10?: number | null): string {
+  if (lane === "mid") return "Мид";
+  if (lane === "jungle") return "Лес";
+  if (lane === "roam") return "Роумер";
+  if (lane !== "top" && lane !== "bot") return "";
+  const safe = (team === RADIANT && lane === "bot") || (team === DIRE && lane === "top");
+  const farmed = lh10 == null || lh10 >= (safe ? 25 : 18);
+  if (!farmed) return "Саппорт";
+  return safe ? "Керри" : "Оффлейн";
+}
+
+const SIDE: Record<string, string> = { radiant: "Radiant", dire: "Dire" };
+const LANE_LABEL: Record<string, string> = { top: "Топ", mid: "Мид", bot: "Бот" };
+
+/** Map zone key from the backend (stats.Region) as a label: "Река, мид", "Лес Dire", "Топ, сторона Dire". */
+export function regionName(key: string | undefined): string {
+  if (!key) return "";
+  const [zone, a, b] = key.split(":");
+  switch (zone) {
+    case "base": return `База ${SIDE[a] ?? a}`;
+    case "river": return `Река, ${(LANE_LABEL[a] ?? a).toLowerCase()}`;
+    case "lane": return `${LANE_LABEL[a] ?? a}, сторона ${SIDE[b] ?? b}`;
+    case "jungle": return `Лес ${SIDE[a] ?? a}`;
+  }
+  return key;
+}
+
+/** Space-grouped integer: 9 420, with a sign when asked: +1 140 / −620. */
+export function num(v: number, sign = false): string {
+  const s = Math.round(Math.abs(v)).toLocaleString("ru-RU").replace(/ /g, " ");
+  if (!sign) return v < 0 ? `−${s}` : s;
+  return v > 0 ? `+${s}` : v < 0 ? `−${s}` : s;
+}
+
+/** Plural form picker for Russian: plural(5, "матч", "матча", "матчей"). */
+export function plural(n: number, one: string, few: string, many: string): string {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+  return many;
+}

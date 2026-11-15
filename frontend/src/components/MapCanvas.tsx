@@ -28,6 +28,15 @@ function loadMapImage(): Promise<HTMLImageElement | null> {
   return mapImageCache;
 }
 
+/** Whether the user configured a map background (null while loading). */
+export function useHasMapImage(): boolean | null {
+  const [has, setHas] = useState<boolean | null>(null);
+  useEffect(() => {
+    loadMapImage().then((img) => setHas(!!img));
+  }, []);
+  return has;
+}
+
 /** Forget the cached background (after the setting changes). */
 export function resetMapImage() {
   mapImageCache = null;
@@ -81,8 +90,8 @@ export function MapCanvas({ points, world, size = 520, onHover, heat, segments }
       ctx.lineWidth = 1.5;
       ctx.stroke();
     }
-    for (const p of points.filter((p) => !p.highlight)) drawPoint(ctx, toPx(p.x, p.y), p.color, 5);
-    for (const p of points.filter((p) => p.highlight)) drawPoint(ctx, toPx(p.x, p.y), p.color, 9, true);
+    for (const p of points.filter((p) => !p.highlight)) drawPoint(ctx, toPx(p.x, p.y), p.color, p.label ? 11 : 5, false, p.label);
+    for (const p of points.filter((p) => p.highlight)) drawPoint(ctx, toPx(p.x, p.y), p.color, p.label ? 13 : 9, true, p.label);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [points, bg, size, min, max, heat, segments]);
 
@@ -110,72 +119,95 @@ export function MapCanvas({ points, world, size = 520, onHover, heat, segments }
   );
 }
 
-function drawPoint(ctx: CanvasRenderingContext2D, [x, y]: [number, number], color: string, r: number, ring = false) {
+function drawPoint(ctx: CanvasRenderingContext2D, [x, y]: [number, number], color: string, r: number, ring = false, label?: string) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
-  ctx.lineWidth = ring ? 3 : 1.5;
-  ctx.strokeStyle = ring ? "#ffffff" : "rgba(0,0,0,0.7)";
+  ctx.lineWidth = ring ? 3 : label ? 2.5 : 1.5;
+  ctx.strokeStyle = ring ? "#ffffff" : "rgba(10,12,16,0.85)";
   ctx.stroke();
+  if (label) {
+    ctx.fillStyle = "#16100e";
+    ctx.font = `700 ${Math.round(r * 1.05)}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x, y + 0.5);
+  }
 }
 
 type ToPx = (x: number, y: number) => [number, number];
 
 function drawSchematic(ctx: CanvasRenderingContext2D, size: number, toPx: ToPx) {
-  ctx.fillStyle = "#1b2a1f";
+  ctx.fillStyle = "#12151b";
   ctx.fillRect(0, 0, size, size);
 
-  // Halves: slight team tint.
-  const tri = (pts: [number, number][], color: string) => {
-    ctx.beginPath();
-    pts.forEach(([x, y], i) => (i ? ctx.lineTo(...toPx(x, y)) : ctx.moveTo(...toPx(x, y))));
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
+  // Team corners: soft glows.
+  const glow = (x: number, y: number, color: string) => {
+    const [px, py] = toPx(x, y);
+    const g = ctx.createRadialGradient(px, py, 0, px, py, size * 0.3);
+    g.addColorStop(0, color);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
   };
-  tri([[-9000, -9000], [-9000, 9000], [9000, -9000]], "rgba(95,209,122,0.06)");
-  tri([[9000, 9000], [-9000, 9000], [9000, -9000]], "rgba(255,107,91,0.06)");
+  glow(-7400, -7000, "rgba(79,209,197,0.16)");
+  glow(7400, 7000, "rgba(248,119,108,0.16)");
 
-  // River: band from top-left to bottom-right.
-  const path = (pts: [number, number][], color: string, width: number) => {
+  const path = (pts: [number, number][], color: string, width: number, curve = false) => {
     ctx.beginPath();
-    pts.forEach(([x, y], i) => (i ? ctx.lineTo(...toPx(x, y)) : ctx.moveTo(...toPx(x, y))));
+    const px = pts.map(([x, y]) => toPx(x, y));
+    ctx.moveTo(...px[0]);
+    if (curve && px.length >= 3) {
+      for (let i = 1; i < px.length - 1; i++) {
+        const [mx, my] = [(px[i][0] + px[i + 1][0]) / 2, (px[i][1] + px[i + 1][1]) / 2];
+        ctx.quadraticCurveTo(px[i][0], px[i][1], mx, my);
+      }
+      ctx.lineTo(...px[px.length - 1]);
+    } else {
+      px.slice(1).forEach((p) => ctx.lineTo(...p));
+    }
     ctx.strokeStyle = color;
     ctx.lineWidth = width;
     ctx.lineJoin = "round";
-    ctx.lineCap = "round";
+    ctx.lineCap = "butt";
     ctx.stroke();
   };
-  path([[-7400, 4600], [-3000, 1600], [-600, -400], [2000, -2600], [5000, -7400]], "rgba(70,130,180,0.45)", size * 0.045);
+  // River: same polyline as the backend region geometry (stats/regions.go).
+  path([[-8200, 5200], [-3000, 1600], [-600, -400], [2000, -2600], [4400, -8200]], "rgba(46,96,160,0.55)", size * 0.05, true);
 
-  // Lanes.
-  const lane = "rgba(210,190,140,0.35)";
-  const lw = size * 0.018;
-  path([[-6600, -5600], [-6600, 6000], [5600, 6000]], lane, lw); // top
-  path([[-5600, -6600], [6200, -6600], [6200, 5600]], lane, lw); // bot
-  path([[-5200, -5000], [5000, 4800]], lane, lw); // mid
+  // Lanes: outer square (top + bot) and the mid diagonal.
+  const lane = "rgba(120,128,145,0.55)";
+  const lw = size * 0.012;
+  path([[-6600, -5600], [-6600, 6000], [5600, 6000]], lane, lw);
+  path([[-5600, -6600], [6200, -6600], [6200, 5600]], lane, lw);
+  path([[-6000, -5600], [5600, 5400]], lane, lw);
 
-  // Bases.
-  const base = (x: number, y: number, color: string) => {
+  // Ancients and labels.
+  const base = (x: number, y: number, color: string, label: string, dx: number, dy: number) => {
     const [px, py] = toPx(x, y);
     ctx.beginPath();
-    ctx.arc(px, py, size * 0.07, 0, Math.PI * 2);
+    ctx.arc(px, py, size * 0.042, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
+    ctx.fillStyle = "rgba(200,205,215,0.55)";
+    ctx.font = `500 ${Math.round(size * 0.026)}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, px + dx * size, py + dy * size);
   };
-  base(-6700, -6200, "rgba(95,209,122,0.35)");
-  base(6500, 6000, "rgba(255,107,91,0.35)");
+  base(-6200, -5800, "#4fd1c5", "Radiant", 0.06, 0.04);
+  base(5900, 5700, "#f8776c", "Dire", -0.14, -0.045);
 }
 
-/** Density heatmap: additive blobs in an offscreen alpha buffer, colourized blue → yellow → red. */
+/** Density heatmap: additive blobs in an offscreen alpha buffer, drawn as soft warm-red glows. */
 function drawHeat(ctx: CanvasRenderingContext2D, size: number, pts: [number, number][]) {
   const off = document.createElement("canvas");
   off.width = size;
   off.height = size;
   const o = off.getContext("2d")!;
-  const r = size * 0.035;
-  const a = Math.min(0.35, Math.max(0.04, 12 / Math.sqrt(pts.length)));
+  const r = size * 0.055;
+  const a = Math.min(0.5, Math.max(0.05, 14 / Math.sqrt(pts.length)));
   for (const [x, y] of pts) {
     const g = o.createRadialGradient(x, y, 0, x, y, r);
     g.addColorStop(0, `rgba(0,0,0,${a})`);
@@ -190,11 +222,8 @@ function drawHeat(ctx: CanvasRenderingContext2D, size: number, pts: [number, num
   for (let i = 0; i < d.length; i += 4) {
     const v = d[i + 3] / peak;
     if (v <= 0.02) { d[i + 3] = 0; continue; }
-    // 0 → blue, 0.5 → yellow, 1 → red
-    const rr = v < 0.5 ? 255 * v * 2 : 255;
-    const gg = v < 0.5 ? 200 * v * 2 + 40 : 240 - (v - 0.5) * 2 * 200;
-    const bb = v < 0.5 ? 255 * (1 - v * 2) : 0;
-    d[i] = rr; d[i + 1] = gg; d[i + 2] = bb; d[i + 3] = Math.min(220, 60 + v * 200);
+    // low density: muted red; peaks: brighter, slightly orange
+    d[i] = 248; d[i + 1] = 110 + 50 * v; d[i + 2] = 100 - 40 * v; d[i + 3] = Math.min(230, 40 + v * 190);
   }
   o.putImageData(img, 0, 0);
   ctx.drawImage(off, 0, 0, size, size);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Api, Dashboard, Filter, Habit } from "../api";
-import { date, duration, gameMode, LANES, laneName, METRICS, pct, WEEKDAYS } from "../format";
+import { relDate, duration, gameMode, LANES, laneName, METRICS, pct, WEEKDAYS } from "../format";
 import { useNames } from "../names";
 import { HeroName } from "../components/HeroBadge";
 import { BarChart, TrendChart } from "../components/Chart";
@@ -30,11 +30,11 @@ export function RecentTable({ d, onMatch }: { d: Dashboard; onMatch: (id: number
           {(d.recent ?? []).map((g) => (
             <tr key={g.match_id} className="clickable" onClick={() => onMatch(g.match_id)}>
               <td><HeroName npc={g.hero_name} /></td>
-              <td>{g.win ? <span className="win">Победа</span> : <span className="loss">Поражение</span>}</td>
-              <td>{g.kills} / <span className="loss">{g.deaths}</span> / {g.assists}</td>
+              <td>{g.win ? <span className="pill win">Победа</span> : <span className="pill loss">Поражение</span>}</td>
+              <td className="num">{g.kills}/{g.deaths}/{g.assists}</td>
               <td className="dim">{laneName(g.lane, g.team)}</td>
-              <td>{duration(g.duration)}</td>
-              <td className="dim">{date(g.end_time)}</td>
+              <td className="num">{duration(g.duration)}</td>
+              <td className="dim">{relDate(g.end_time)}</td>
             </tr>
           ))}
         </tbody>

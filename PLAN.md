@@ -33,6 +33,12 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | Download target | configured replay folder if it exists, else `<data dir>/replays`; existing `<id>.dem` is reused | Downloaded replays get picked up by the normal scan too. |
 | Replay download | OpenDota `/matches/{id}` → `cluster` + `replay_salt` → `replay{cluster}.valve.net/570/{id}_{salt}.dem.bz2`. **The file is currently zstd despite the `.bz2` name** — detect by magic bytes, support both. 404 → "Valve already deleted this replay". | found during spike |
 
+| UI redesign (mockups 2026-11) | dark theme with orange accent, mono numerals; nav Matches / Heroes / Dashboard / Settings; import/scan/download moved to the Matches page (download appears when the search is an unknown match id) | Owner's mockups. |
+| Role label | guessed from lane + LH@10: mid → Мид, safe lane ≥25 LH → Керри, off lane ≥18 LH → Оффлейн, otherwise Саппорт; jungle/roam | No role data in replays. |
+| Death "no vision" | no allied observer alive within 1400 units of the death spot | Observer day vision radius; sentries ignored. |
+| Map zones | `stats.Region`: base / river (top·mid·bot) / lane + side / jungle + side, coarse geometry; used for deaths, idle periods, hero death top-zones | Human-readable locations; no tower-level precision. |
+| Per-replay parse progress | bytes read from the .dem, `library:parsing` event, ≥2% steps | Cheap and monotonic; no manta hook needed. |
+
 ## Phases
 
 ### Phase 0 — bootstrap
@@ -73,3 +79,11 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Hero page, Dashboard
 - [x] Download by match ID via OpenDota
 - [x] "Re-parse all" button (parser_version)
+
+### UI redesign (owner mockups)
+- [x] Theme, sidebar with icons and parse queue card
+- [x] Matches: summary cards (winrate 20, KDA, LH@10 vs goal, GPM vs previous 20), search/hero/mode/result filters, per-replay parse progress, error details modal
+- [x] Match overview: head stats, net worth vs opponent, laning card, gold sources, item timings vs average, ability hit rates, idle timeline; scoreboard below
+- [x] Deaths tab: numbered map markers, movement layer, death cards with region, killers, killing blow, vision and buyback tags
+- [x] Hero page: hero tabs, recent-vs-all cards, worst habits with explanations, GPM last 20, winrate by time of day, death zones, key item timings (avg / best / count)
+- [x] Setting: LH@10 goal

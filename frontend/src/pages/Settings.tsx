@@ -108,7 +108,12 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
         <label>
           <span>Порог простоя, с</span>
           <input type="number" min={1} value={s.idle_threshold} onChange={(e) => set("idle_threshold", Number(e.target.value))} />
-          <small>Сколько секунд без фарма и драк считается простоем (фаза 3).</small>
+          <small>Сколько секунд без фарма и драк считается простоем.</small>
+        </label>
+        <label>
+          <span>Цель по ЛХ на 10 минуте</span>
+          <input type="number" min={1} value={s.lh10_goal} onChange={(e) => set("lh10_goal", Number(e.target.value))} />
+          <small>Показывается в списке матчей и на вкладке «Обзор».</small>
         </label>
 
         <div className="row">
