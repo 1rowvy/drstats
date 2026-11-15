@@ -225,7 +225,8 @@ func (a *App) ListMatches() ([]store.MatchRow, error) {
 
 // Match returns the match page data; focus < 0 means "me".
 func (a *App) Match(matchID int64, focus int) (*stats.MatchView, error) {
-	return stats.BuildMatchView(a.st, matchID, a.accountID(), focus)
+	cfg := a.settings()
+	return stats.BuildMatchView(a.st, matchID, a.accountID(), focus, stats.Options{HitWindow: cfg.HitWindowSec, IdleThreshold: cfg.IdleThreshold})
 }
 
 // Progress returns the parse queue state.

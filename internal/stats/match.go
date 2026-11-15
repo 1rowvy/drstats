@@ -52,11 +52,19 @@ type MatchView struct {
 	Farm     Farm           `json:"farm"`
 	Deaths   []parser.Death `json:"deaths"`
 	World    [2]float64     `json:"world"` // map coordinate bounds [min, max]
+
+	// Analyses of the focused player (zero values when Focus < 0).
+	Laning    Laning       `json:"laning"`
+	Gold      Gold         `json:"gold"`
+	Items     []ItemTiming `json:"items"`
+	Fights    Fights       `json:"fights"`
+	Abilities Abilities    `json:"abilities"`
+	Vision    Vision       `json:"vision"`
 }
 
 // BuildMatchView loads a match and derives the view for the given focus:
 // focusPID >= 0 picks a player explicitly, otherwise accountID selects "me".
-func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID int) (*MatchView, error) {
+func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID int, opt Options) (*MatchView, error) {
 	meta, m, err := st.Match(matchID)
 	if err != nil {
 		return nil, err
@@ -92,6 +100,34 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 		v.Opponent = LaneOpponent(players, byPID, v.Focus)
 	}
 	v.Farm = buildFarm(players, byPID, v.Focus, v.Opponent)
+	v.Items = []ItemTiming{}
+	if v.Focus < 0 {
+		return v, nil
+	}
+	var me parser.Player
+	for _, p := range players {
+		if p.PlayerID == v.Focus {
+			me = p
+		}
+	}
+	ss := byPID[v.Focus]
+	v.Laning = buildLaning(m, byPID, v.Focus, v.Opponent)
+	v.Gold = buildGold(me, ss, v.Farm.T, opt)
+	var avg map[string]ItemAvg
+	if me.AccountID != 0 {
+		rows, err := st.ItemTimings(me.AccountID, me.HeroID, matchID)
+		if err != nil {
+			return nil, err
+		}
+		avg = map[string]ItemAvg{}
+		for _, r := range rows {
+			avg[r.Item] = ItemAvg{Avg: r.Avg, N: r.N}
+		}
+	}
+	v.Items = buildItems(m, v.Focus, avg)
+	v.Fights = buildFights(m, me)
+	v.Abilities = buildAbilities(m, v.Focus, opt)
+	v.Vision = buildVision(m, me, ss, v.Laning.Lane)
 	return v, nil
 }
 

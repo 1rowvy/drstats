@@ -438,3 +438,35 @@ func (s *Store) events(m *parser.Match, matchID int64) error {
 	}
 	return rows.Err()
 }
+
+// ItemTiming is the average first-purchase time of an item over matches.
+type ItemTiming struct {
+	Item string  `json:"item"`
+	Avg  float64 `json:"avg"`
+	N    int     `json:"n"`
+}
+
+// ItemTimings averages, per item, the first purchase time of the account on
+// the hero over all stored matches except excludeMatch.
+func (s *Store) ItemTimings(accountID uint32, heroID int, excludeMatch int64) ([]ItemTiming, error) {
+	rows, err := s.db.Query(`
+		SELECT key, AVG(first_t), COUNT(*) FROM (
+			SELECT e.match_id, e.key, MIN(e.t) AS first_t
+			FROM events e JOIN players p ON p.match_id = e.match_id AND p.player_id = e.player_id
+			WHERE e.type = ? AND p.account_id = ? AND p.hero_id = ? AND e.match_id != ?
+			GROUP BY e.match_id, e.key)
+		GROUP BY key`, EventPurchase, accountID, heroID, excludeMatch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ItemTiming
+	for rows.Next() {
+		var it ItemTiming
+		if err := rows.Scan(&it.Item, &it.Avg, &it.N); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}

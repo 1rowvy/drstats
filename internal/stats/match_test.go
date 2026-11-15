@@ -47,7 +47,7 @@ func TestBuildMatchView(t *testing.T) {
 	if _, err := st.SaveMatch(id, m); err != nil {
 		t.Fatal(err)
 	}
-	v, err := BuildMatchView(st, 7, 11, -1)
+	v, err := BuildMatchView(st, 7, 11, -1, DefaultOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,12 +59,12 @@ func TestBuildMatchView(t *testing.T) {
 		t.Errorf("farm gpm: %v %v %v", f.GPM.Focus[120], f.GPM.Opponent[120], f.GPM.TeamAvg[120])
 	}
 	// Picking another player explicitly.
-	v, _ = BuildMatchView(st, 7, 11, 5)
+	v, _ = BuildMatchView(st, 7, 11, 5, DefaultOptions)
 	if v.Focus != 5 || v.IsMe {
 		t.Errorf("explicit focus: %d %v", v.Focus, v.IsMe)
 	}
 	// Unknown account and no pick: no focus, empty lines.
-	v, _ = BuildMatchView(st, 7, 0, -1)
+	v, _ = BuildMatchView(st, 7, 0, -1, DefaultOptions)
 	if v.Focus != -1 || len(v.Farm.NetWorth.Focus) != 0 {
 		t.Errorf("no focus: %+v", v.Focus)
 	}
