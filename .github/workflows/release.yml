@@ -1,11 +1,14 @@
-# Builds Windows and Linux binaries on a version tag and publishes a GitHub
-# Release. The in-app updater (Wails GitHub provider) picks the asset whose
-# name contains the OS and arch, and verifies it against SHA256SUMS.
+# Builds Windows and Linux binaries and installers on a version tag and
+# publishes a GitHub Release. The in-app updater (Wails GitHub provider) picks
+# the asset whose name contains the OS and arch, skips names with
+# "-installer.", and verifies it against SHA256SUMS. A manual run builds
+# everything as version 0.0.0 and only uploads it as a workflow artifact.
 name: release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -29,7 +32,7 @@ jobs:
       - name: Install Linux build dependencies (GTK4, WebKitGTK 6.0)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev nsis
 
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
@@ -37,21 +40,45 @@ jobs:
       - name: Test
         run: go test ./internal/...
 
+      - name: Version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"; else echo "VERSION=0.0.0" >> "$GITHUB_ENV"; fi
+
       - name: Build
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           wails3 build VERSION="$VERSION"
           wails3 build GOOS=windows VERSION="$VERSION"
 
       - name: Package
         run: |
           mkdir dist
+          # Updater artifacts: exactly one top-level entry each.
           tar -czf dist/drstats-linux-amd64.tar.gz -C bin drstats
           (cd bin && zip -q ../dist/drstats-windows-amd64.zip drstats.exe)
+
+          # Windows installer: per-user (no UAC), so the updater can replace the exe.
+          wails3 generate webview2bootstrapper -dir build/windows/nsis
+          (cd build/windows/nsis && makensis -V2 -DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user \
+            -DINFO_PRODUCTVERSION="$VERSION" -DARG_WAILS_AMD64_BINARY="$GITHUB_WORKSPACE/bin/drstats.exe" project.nsi)
+          mv bin/drstats-amd64-installer.exe dist/drstats-windows-amd64-installer.exe
+
+          # Linux installer: binary + install.sh + icon, installs into ~/.local.
+          mkdir -p pkg/drstats
+          cp bin/drstats build/linux/install.sh build/linux/drstats.png pkg/drstats/
+          tar -czf dist/drstats-linux-amd64-installer.tar.gz -C pkg drstats
+
           (cd dist && sha256sum drstats-* > SHA256SUMS)
           cat dist/SHA256SUMS
 
+      - name: Upload (manual run)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drstats-${{ env.VERSION }}
+          path: dist/
+
       - name: Publish release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

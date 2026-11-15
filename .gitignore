@@ -25,3 +25,7 @@ frontend/dist/
 # Wails / Task
 .task/
 .wails/
+
+# Packaging
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+pkg/
