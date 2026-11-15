@@ -276,6 +276,8 @@ type MatchRow struct {
 	Error     string  `json:"error"`
 	Stale     bool    `json:"stale"` // parsed by an older parser version
 	MTime     int64   `json:"mtime"`
+	Size      int64   `json:"size"`     // replay file bytes
+	ParseMS   int64   `json:"parse_ms"` // last successful parse duration
 	MatchID   int64   `json:"match_id"`
 	GameMode  int     `json:"game_mode"`
 	LobbyType int     `json:"lobby_type"`
@@ -312,7 +314,7 @@ type MatchRow struct {
 // already stored match are omitted.
 func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 	rows, err := s.db.Query(`
-		SELECT r.id, r.path, r.status, r.error, r.parser_version, r.mtime,
+		SELECT r.id, r.path, r.status, r.error, r.parser_version, r.mtime, r.size, r.parse_ms,
 		       m.match_id, m.game_mode, m.lobby_type, m.duration, m.end_time, m.winner,
 		       p.player_id, p.team, p.hero_id, p.hero_name, p.kills, p.deaths, p.assists, p.net_worth,
 		       p.name, p.last_hits, p.denies, p.total_gold, s.last_hits, o.position
@@ -336,7 +338,7 @@ func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 		var pid, team, heroID, k, d, a, nw sql.NullInt64
 		var hero, name sql.NullString
 		var lh, dn, gold, lh10, pos sql.NullInt64
-		if err := rows.Scan(&r.ReplayID, &r.Path, &r.Status, &r.Error, &pv, &r.MTime,
+		if err := rows.Scan(&r.ReplayID, &r.Path, &r.Status, &r.Error, &pv, &r.MTime, &r.Size, &r.ParseMS,
 			&matchID, &mode, &lobby, &dur, &endTime, &winner,
 			&pid, &team, &heroID, &hero, &k, &d, &a, &nw,
 			&name, &lh, &dn, &gold, &lh10, &pos); err != nil {

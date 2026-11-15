@@ -71,6 +71,16 @@ export interface MatchRow {
      */
     "stale": boolean;
     "mtime": number;
+
+    /**
+     * replay file bytes
+     */
+    "size": number;
+
+    /**
+     * last successful parse duration
+     */
+    "parse_ms": number;
     "match_id": number;
     "game_mode": number;
     "lobby_type": number;
