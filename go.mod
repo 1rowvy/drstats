@@ -4,6 +4,7 @@ go 1.26.2
 
 require (
 	github.com/dotabuff/manta v1.5.2
+	github.com/klauspost/compress v1.20.1
 	github.com/wailsapp/wails/v3 v3.1.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.62.0

@@ -15,6 +15,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/1rowvy/drstats/internal/constants"
+	"github.com/1rowvy/drstats/internal/download"
 	"github.com/1rowvy/drstats/internal/library"
 	"github.com/1rowvy/drstats/internal/settings"
 	"github.com/1rowvy/drstats/internal/stats"
@@ -27,6 +28,7 @@ const settingsKey = "settings"
 const (
 	EventConstants = "constants:updated" // payload: nil
 	EventImported  = "library:imported"  // payload: ImportResult
+	EventDownload  = "download:progress" // payload: download.Progress
 )
 
 func init() {
@@ -34,6 +36,7 @@ func init() {
 	application.RegisterEvent[library.Progress](library.EventProgress)
 	application.RegisterEvent[ImportResult](EventImported)
 	application.RegisterEvent[application.Void](EventConstants)
+	application.RegisterEvent[download.Progress](EventDownload)
 }
 
 // App is the single service bound to the frontend.
@@ -273,6 +276,31 @@ func (a *App) importResult(n int, err error) ImportResult {
 // ReparseAll queues parsed replays again; onlyStale limits it to replays
 // parsed by an older parser version (and failed ones).
 func (a *App) ReparseAll(onlyStale bool) (int, error) { return a.lib.ReparseAll(onlyStale) }
+
+// DownloadMatch starts downloading a replay by match id (or match URL) in the
+// background; progress and the result come as download:progress events, and
+// the file is imported when done. It saves into the replay folder when it
+// exists, else into the app data folder.
+func (a *App) DownloadMatch(input string) (uint64, error) {
+	id, err := download.ParseMatchID(input)
+	if err != nil {
+		return 0, err
+	}
+	dir := a.settings().ReplayDir
+	if st, err := os.Stat(dir); dir == "" || err != nil || !st.IsDir() {
+		dir = filepath.Join(a.dataDir, "replays")
+	}
+	go func() {
+		c := download.New(func(p download.Progress) { a.app.Event.Emit(EventDownload, p) })
+		path, err := c.Fetch(context.Background(), id, dir)
+		if err != nil {
+			slog.Warn("download replay", "match", id, "err", err)
+			return
+		}
+		a.ImportPaths([]string{path})
+	}()
+	return id, nil
+}
 
 // Reparse queues a replay for parsing again.
 func (a *App) Reparse(replayID int64) error { return a.lib.Reparse(replayID) }
