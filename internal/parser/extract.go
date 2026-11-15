@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/dotabuff/manta"
 	"github.com/dotabuff/manta/dota"
@@ -27,9 +28,11 @@ func ParseFile(path string) (*Match, error) {
 // Parse extracts a Match from a replay stream. It never panics.
 func Parse(r io.Reader) (*Match, error) {
 	x := &extractor{
-		lastState: -1,
-		lastLife:  map[int]int{},
-		heroByPID: map[int]string{},
+		lastState:    -1,
+		lastLife:     map[int]int{},
+		lastStacks:   map[int]int{},
+		lastGoldLost: map[int]int{},
+		wardByIdx:    map[int32]int{},
 	}
 	err := Safe(func() error {
 		p, err := manta.NewStreamParser(r)
@@ -86,11 +89,38 @@ type extractor struct {
 	lastLife        map[int]int // pid -> lifeState
 	rawDeaths       []rawDeath
 	posDeaths       []posDeath
-	heroByPID       map[int]string // npc_dota_hero_* by player id (from file info)
 	fileHeroBySteam map[uint64]string
 	fileHeroOrdered []string
 	lastTickSampled uint32
+
+	raw          []rawEntry
+	buybacks     []tickPID
+	wardDeaths   []wardDeath
+	wards        []rawWard
+	wardByIdx    map[int32]int // entity index -> wards index, while alive
+	runes        []rawRune
+	stacks       []tickPID
+	goldLost     []tickValuePID
+	lastStacks   map[int]int
+	lastGoldLost map[int]int
 }
+
+type rawRune struct {
+	tick    uint32
+	pid     int
+	typ     int
+	bottled bool
+}
+
+type tickValuePID struct {
+	tick uint32
+	pid  int
+	v    int
+}
+
+// counterEvery is how often (ticks) slow-changing per-player counters
+// (camps stacked, gold lost to death) are polled.
+const counterEvery = 15
 
 func (x *extractor) name(idx uint32) string {
 	s, _ := x.p.LookupStringByIndex("CombatLogNames", int32(idx))
@@ -132,30 +162,25 @@ func (x *extractor) register() {
 		if e == x.rules && !op.Flag(manta.EntityOpDeleted) {
 			x.onRules(e)
 		}
+		if strings.HasPrefix(e.GetClassName(), "CDOTA_NPC_Observer_Ward") {
+			x.onWard(e, op)
+		}
 		return nil
 	})
 
 	p.Callbacks.OnCMsgDOTACombatLogEntry(func(m *dota.CMsgDOTACombatLogEntry) error {
-		if m.GetType() != dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_DEATH ||
-			!m.GetIsTargetHero() || m.GetIsTargetIllusion() || m.GetWillReincarnate() {
-			return nil
+		x.onCombatLog(m)
+		return nil
+	})
+
+	p.Callbacks.OnCDOTAUserMsg_ChatEvent(func(m *dota.CDOTAUserMsg_ChatEvent) error {
+		switch m.GetType() {
+		case dota.DOTA_CHAT_MESSAGE_CHAT_MESSAGE_RUNE_PICKUP, dota.DOTA_CHAT_MESSAGE_CHAT_MESSAGE_RUNE_BOTTLE:
+			x.runes = append(x.runes, rawRune{
+				tick: x.p.Tick, pid: int(m.GetPlayerid_1()), typ: int(m.GetValue()),
+				bottled: m.GetType() == dota.DOTA_CHAT_MESSAGE_CHAT_MESSAGE_RUNE_BOTTLE,
+			})
 		}
-		inf := x.name(m.GetInflictorName())
-		if inf == "dota_unknown" {
-			inf = ""
-		}
-		assists := make([]int, 0, len(m.GetAssistPlayers()))
-		for _, a := range m.GetAssistPlayers() {
-			assists = append(assists, int(a))
-		}
-		x.rawDeaths = append(x.rawDeaths, rawDeath{
-			tick:      x.p.Tick,
-			victim:    x.name(m.GetTargetName()),
-			killer:    x.name(m.GetAttackerName()),
-			source:    x.name(m.GetDamageSourceName()),
-			inflictor: inf,
-			assists:   assists,
-		})
 		return nil
 	})
 
@@ -163,6 +188,30 @@ func (x *extractor) register() {
 		x.onTick()
 		return nil
 	})
+}
+
+func (x *extractor) onWard(e *manta.Entity, op manta.EntityOp) {
+	if op.Flag(manta.EntityOpCreated) {
+		wx, wy, _ := WorldPos(e)
+		x.wardByIdx[e.GetIndex()] = len(x.wards)
+		x.wards = append(x.wards, rawWard{
+			created:     x.p.Tick,
+			sentry:      strings.HasSuffix(e.GetClassName(), "_TrueSight"),
+			team:        Int(e, "m_iTeamNum"),
+			ownerHandle: Handle(e, "m_hOwnerEntity"),
+			ownerPID:    Int(e, "m_nPlayerOwnerID") / 2, // 2 x player id in current builds
+			x:           wx, y: wy,
+		})
+	}
+	if i, ok := x.wardByIdx[e.GetIndex()]; ok && x.wards[i].died == 0 && Int(e, "m_lifeState") != 0 {
+		x.wards[i].died = x.p.Tick
+	}
+	if op.Flag(manta.EntityOpDeleted) {
+		if i, ok := x.wardByIdx[e.GetIndex()]; ok {
+			x.wards[i].removed = x.p.Tick
+			delete(x.wardByIdx, e.GetIndex())
+		}
+	}
 }
 
 func (x *extractor) onRules(e *manta.Entity) {
@@ -222,7 +271,11 @@ func (x *extractor) onTick() {
 	if sample {
 		x.nextSample = math.Floor(t/SeriesStep)*SeriesStep + SeriesStep
 	}
+	counters := x.p.Tick%counterEvery == 0
 	for _, pid := range x.players() {
+		if counters {
+			x.pollCounters(pid)
+		}
 		hero := x.heroOf(pid)
 		if hero == nil {
 			continue
@@ -247,10 +300,28 @@ func (x *extractor) onTick() {
 			s.TotalXP = Int(de, dp+"m_iTotalEarnedXP")
 			s.LastHits = Int(de, dp+"m_iLastHitCount")
 			s.Denies = Int(de, dp+"m_iDenyCount")
+			s.GoldCreep = Int(de, dp+"m_iCreepKillGold") + Int(de, dp+"m_iCreepDenyGold")
+			s.GoldNeutral = Int(de, dp+"m_iNeutralKillGold")
 		})
 		s.X, s.Y = round1(s.X), round1(s.Y)
 		x.m.Series = append(x.m.Series, s)
 	}
+}
+
+// pollCounters records increments of camps stacked and gold lost to death.
+func (x *extractor) pollCounters(pid int) {
+	x.fillEconomy(pid, func(de *manta.Entity, dp string) {
+		if v := Int(de, dp+"m_iCampsStacked"); v > x.lastStacks[pid] {
+			for range v - x.lastStacks[pid] {
+				x.stacks = append(x.stacks, tickPID{x.p.Tick, pid})
+			}
+			x.lastStacks[pid] = v
+		}
+		if v := Int(de, dp+"m_iGoldLostToDeath"); v > x.lastGoldLost[pid] {
+			x.goldLost = append(x.goldLost, tickValuePID{x.p.Tick, pid, v - x.lastGoldLost[pid]})
+			x.lastGoldLost[pid] = v
+		}
+	})
 }
 
 // fillEconomy calls fn with the team data entity and field prefix of player pid.
@@ -276,6 +347,7 @@ func (x *extractor) finish() {
 	}
 
 	pidByHero := map[string]int{}
+	pidByHandle := map[uint64]int{}
 	for i, pid := range x.players() {
 		pd := fmt.Sprintf("m_vecPlayerData.%04d.", pid)
 		pt := fmt.Sprintf("m_vecPlayerTeamData.%04d.", pid)
@@ -307,13 +379,53 @@ func (x *extractor) finish() {
 			pl.HeroDamage = Int(de, dp+"m_flHeroDamage")
 			pl.TowerDamage = Int(de, dp+"m_flTowerDamage")
 			pl.Healing = Int(de, dp+"m_fHealing")
+			pl.GoldCreep = Int(de, dp+"m_iCreepKillGold") + Int(de, dp+"m_iCreepDenyGold")
+			pl.GoldNeutral = Int(de, dp+"m_iNeutralKillGold")
+			pl.GoldHero = Int(de, dp+"m_iHeroKillGold")
+			pl.GoldBuilding = Int(de, dp+"m_iBuildingGold")
+			pl.GoldPassive = Int(de, dp+"m_iIncomeGold")
+			pl.GoldBounty = Int(de, dp+"m_iBountyGold")
+			pl.GoldRoshan = Int(de, dp+"m_iRoshanGold")
+			named := pl.GoldCreep + pl.GoldNeutral + pl.GoldHero + pl.GoldBuilding + pl.GoldPassive + pl.GoldBounty + pl.GoldRoshan
+			pl.GoldOther = max(0, pl.TotalGold-named)
+			pl.GoldLost = Int(de, dp+"m_iGoldLostToDeath")
+			pl.CampsStacked = Int(de, dp+"m_iCampsStacked")
+			pl.Stuns = round1(Float(de, dp+"m_fStuns"))
+			pl.ObsPlaced = Int(de, dp+"m_iObserverWardsPlaced")
+			pl.SenPlaced = Int(de, dp+"m_iSentryWardsPlaced")
+			pl.WardsDestroyed = Int(de, dp+"m_iWardsDestroyed")
+			pl.RunePickups = Int(de, dp+"m_iRunePickups")
 		})
 		if pl.HeroName != "" {
 			pidByHero[pl.HeroName] = pid
 		}
+		if h := Handle(x.pr, pt+"m_hSelectedHero"); h != NullHandle {
+			pidByHandle[h] = pid
+		}
 		x.m.Players = append(x.m.Players, pl)
 	}
 	x.buildDeaths(pidByHero)
+	x.buildCombat(pidByHero)
+	x.buildWards(pidByHero, pidByHandle)
+
+	gt := func(tick uint32) float64 { return round2(x.clock.GameTime(tick)) }
+	for _, r := range x.runes {
+		x.m.Runes = append(x.m.Runes, Rune{T: gt(r.tick), PlayerID: r.pid, Type: r.typ, Bottled: r.bottled})
+	}
+	for _, s := range x.stacks {
+		x.m.Stacks = append(x.m.Stacks, Mark{T: gt(s.tick), PlayerID: s.pid})
+	}
+	for _, b := range x.buybacks {
+		x.m.Buybacks = append(x.m.Buybacks, Mark{T: gt(b.tick), PlayerID: b.pid})
+	}
+	for i := range x.m.Players {
+		p := &x.m.Players[i]
+		for _, b := range x.m.Buybacks {
+			if b.PlayerID == p.PlayerID {
+				p.Buybacks++
+			}
+		}
+	}
 }
 
 // buildDeaths resolves combat-log deaths to player ids and attaches the
@@ -362,7 +474,25 @@ func (x *extractor) buildDeaths(pidByHero map[string]int) {
 			used[best] = true
 			d.X, d.Y, d.HasPos = round1(x.posDeaths[best].x), round1(x.posDeaths[best].y), true
 		}
+		for _, g := range x.goldLost {
+			if g.pid == victim && g.tick+TickRate >= rd.tick && g.tick <= rd.tick+3*TickRate {
+				d.GoldLost += g.v
+			}
+		}
 		x.m.Deaths = append(x.m.Deaths, d)
+	}
+	// A buyback belongs to the victim's last death before it.
+	for _, b := range x.buybacks {
+		bt := round2(x.clock.GameTime(b.tick))
+		last := -1
+		for i, d := range x.m.Deaths {
+			if d.VictimPID == b.pid && d.T <= bt {
+				last = i
+			}
+		}
+		if last >= 0 {
+			x.m.Deaths[last].Buyback = true
+		}
 	}
 	sort.SliceStable(x.m.Deaths, func(i, j int) bool { return x.m.Deaths[i].T < x.m.Deaths[j].T })
 }
