@@ -39,6 +39,13 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | Map background | bundled 7.41 game minimap (`frontend/public/minimap-7.41.jpg`, from Liquipedia's game-asset copy), image covers world [-10400, 10300], calibrated on fountains/ancients/towers/Roshan of a 7.41 replay; user picture in settings still overrides; schematic only if loading fails | Owner asked for the real map (2026-11). Needs a refresh when a patch reshapes the map. |
 | Map zones | `stats.Region`: base / river (top·mid·bot) / lane + side / jungle + side, coarse geometry; used for deaths, idle periods, hero death top-zones | Human-readable locations; no tower-level precision. |
 | OpenDota match extras | after parsing, `/matches/{id}` is fetched in the background (1 req/1.1 s) and `position_est`, `rank_tier`, `party_size`, `benchmarks` are stored in `od_players` (keyed by match + hero, no FK so re-parse keeps them). Role = OpenDota position when known, else own lane heuristic. Unparsed / failed fetches retry after 6 h; switch-off in settings | Owner: "тянуть и оттуда и оттуда" — replay stays the primary source, OpenDota fills what a replay can't know. |
+| UI redesign v2 (mockup PDF 2026-11-16) | top nav Матчи / Дашборд / Герои / Импорт, settings behind a gear; fonts Unbounded + Inter + JetBrains Mono bundled via fontsource (offline); match tabs Разбор / Фарм / Драки / Смерти / Способности + extra «Вижн» (kept so ward/rune data stays visible) | Owner's second mockup set. |
+| Parser v3 | building / Roshan kills (`objective` events), hero-to-hero damage in 5 s buckets per attacker/target/inflictor (`hdmg` events, ~1–3k rows/match), pause intervals in `matches.pauses` | Needed for the game-flow timeline, fight breakdowns and exact `demo_gototick` ticks. |
+| Fights | 5 s buckets with ≥600 hero damage or a hero death, merged across gaps ≤10 s; kept if a death happened or ≥4000 damage, and the focused player dealt/took ≥150 or got a kill/assist; won = more enemy deaths (tie: gold swing); gold swing = change of team NW difference over the fight | Simple, explainable; on the test replay every kill of every player falls into a detected fight. |
+| Match grade | weighted percentile (KDA 1.5, GPM 1.2, XPM .8, hero dmg/min 1, KP 1, deaths 1 (lower better), LH@10 .8, tower dmg .5) against the player's other matches — same hero when ≥8 others, else all; ×85 + 15 for a win; letters A+…D; none with <5 reference matches | Personal, needs no external data. |
+| Moments / verdict | generated on the client from fights, deaths, objectives, item timings, hit rates, idle time, OpenDota benchmarks | Texts are UI; backend gives structured data. |
+| Folder watching | poll the replay folder every 20 s, files must be ≥15 s old (Dota may still be writing); setting `watch_off` | Mockup «Слежу за папкой / Парсить новые сразу»; polling is portable and cheap. |
+| Import stages | the queue shows percent only, not header/entities/combat-log stages | Progress is measured by bytes read; manta has no stage hooks. |
 | Per-replay parse progress | bytes read from the .dem, `library:parsing` event, ≥2% steps | Cheap and monotonic; no manta hook needed. |
 
 ## Phases
@@ -91,3 +98,10 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Hero page: hero tabs, recent-vs-all cards, worst habits with explanations, GPM last 20, winrate by time of day, death zones, key item timings (avg / best / count)
 - [x] Setting: LH@10 goal
 - [x] OpenDota extras: estimated position (role), rank, party, benchmark percentiles on the match page; settings toggle and "fetch now" button
+
+### UI redesign v2 (mockup PDF, 2026-11-16)
+- [x] Parser v3: objectives, bucketed hero damage, pauses; parse time per replay
+- [x] Stats: team advantage + ticks on the series axis, fights, match grades, dashboard extras (hours, activity, records, streak, party/solo, fastest items)
+- [x] Replay folder watching (setting)
+- [x] Theme, fonts, top nav; Matches cards with grades; Import page
+- [x] Match: Разбор (flow, moments, verdict), Фарм, Драки, Смерти; Hero page; Dashboard
