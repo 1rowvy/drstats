@@ -23,12 +23,12 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] GitHub repo `1rowvy/drstats` (public) + push
 
 ### Phase 1 — spike (`cmd/dump`)
-- [ ] `cmd/dump <file.dem>` → JSON: match info & players, every combat log type with samples,
+- [x] `cmd/dump <file.dem>` → JSON: match info & players, every combat log type with samples,
       hero entity classes and their fields (position, gold, LH, level, …), game rules states
-- [ ] tick → game time function anchored at `GAME_IN_PROGRESS`
-- [ ] panic-safe parse wrapper
-- [ ] test on `testdata/` replay (skip if absent)
-- [ ] report: what can be extracted, what is not in the replay
+- [x] tick → game time function anchored at `GAME_IN_PROGRESS` (`parser.Clock`, pause-aware)
+- [x] panic-safe parse wrapper (`parser.Safe`)
+- [x] test on `testdata/` replay (skip if absent)
+- [x] report: `docs/spike.md`
 
 ### Phase 2 — MVP
 - [ ] Wails v3 app skeleton (React+TS+Vite), dark theme
