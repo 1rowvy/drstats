@@ -13,6 +13,9 @@ import type * as main$0 from "../../../../1rowvy/drstats/models.js";
 import type * as download$0 from "../../../../1rowvy/drstats/internal/download/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as enrich$0 from "../../../../1rowvy/drstats/internal/enrich/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as library$0 from "../../../../1rowvy/drstats/internal/library/models.js";
 
 declare module "@wailsio/runtime" {
@@ -24,6 +27,7 @@ declare module "@wailsio/runtime" {
             "library:parsing": library$0.ParseProgress;
             "library:progress": library$0.Progress;
             "library:replay": library$0.ReplayEvent;
+            "opendota:updated": enrich$0.Updated;
         }
     }
 }

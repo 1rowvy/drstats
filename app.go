@@ -16,6 +16,8 @@ import (
 
 	"github.com/1rowvy/drstats/internal/constants"
 	"github.com/1rowvy/drstats/internal/download"
+	"github.com/1rowvy/drstats/internal/enrich"
+	"github.com/1rowvy/drstats/internal/opendota"
 	"github.com/1rowvy/drstats/internal/library"
 	"github.com/1rowvy/drstats/internal/settings"
 	"github.com/1rowvy/drstats/internal/stats"
@@ -38,6 +40,7 @@ func init() {
 	application.RegisterEvent[ImportResult](EventImported)
 	application.RegisterEvent[application.Void](EventConstants)
 	application.RegisterEvent[download.Progress](EventDownload)
+	application.RegisterEvent[enrich.Updated](enrich.EventUpdated)
 }
 
 // App is the single service bound to the frontend.
@@ -47,6 +50,8 @@ type App struct {
 
 	st    *store.Store
 	lib   *library.Library
+	od    *enrich.Enricher
+	stop  context.CancelFunc
 	names *constants.Service
 
 	mu  sync.Mutex
@@ -79,7 +84,23 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 	a.cfg.Normalize()
 
 	a.names = constants.New(a.st)
-	a.lib = library.New(a.st, func(name string, data any) { a.app.Event.Emit(name, data) })
+	emit := func(name string, data any) { a.app.Event.Emit(name, data) }
+	a.od = enrich.New(a.st, opendota.New(), emit, func() bool { return !a.settings().OpenDotaOff })
+	a.lib = library.New(a.st, func(name string, data any) {
+		// A freshly parsed match gets its OpenDota extras right away.
+		if ev, ok := data.(library.ReplayEvent); ok && ev.Status == store.StatusDone {
+			a.od.Queue(ev.MatchID)
+		}
+		emit(name, data)
+	})
+	bg, cancel := context.WithCancel(context.Background())
+	a.stop = cancel
+	go a.od.Run(bg)
+	go func() {
+		if _, err := a.od.Backfill(false); err != nil {
+			slog.Warn("opendota backfill", "err", err)
+		}
+	}()
 	if err := a.lib.Start(a.cfg.Parallelism); err != nil {
 		return err
 	}
@@ -102,6 +123,9 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 
 // ServiceShutdown stops the workers and closes the database.
 func (a *App) ServiceShutdown() error {
+	if a.stop != nil {
+		a.stop()
+	}
 	if a.lib != nil {
 		a.lib.Stop()
 	}
@@ -175,10 +199,22 @@ func (a *App) SaveSettings(s settings.Settings) (settings.Settings, error) {
 	a.cfg = s
 	a.mu.Unlock()
 	a.lib.SetParallelism(s.Parallelism)
+	if old.OpenDotaOff && !s.OpenDotaOff {
+		go a.od.Backfill(false)
+	}
 	if s.ReplayDir != old.ReplayDir {
 		go a.ScanReplayDir()
 	}
 	return s, nil
+}
+
+// FetchOpenDota re-queues every match without full OpenDota data (ignoring
+// the retry delay) and returns how many were queued.
+func (a *App) FetchOpenDota() (int, error) {
+	if a.settings().OpenDotaOff {
+		return 0, errors.New("OpenDota выключена в настройках")
+	}
+	return a.od.Backfill(true)
 }
 
 // DefaultReplayDir returns the OS default replay folder.

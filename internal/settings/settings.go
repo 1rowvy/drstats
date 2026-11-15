@@ -25,6 +25,9 @@ type Settings struct {
 	IdleThreshold float64 `json:"idle_threshold"` // seconds without farm/fight considered idle
 	// LH10Goal is the personal last-hits-at-10:00 target shown on the match and list pages.
 	LH10Goal int `json:"lh10_goal"`
+	// OpenDotaOff disables fetching per-match extras (positions, ranks,
+	// benchmarks) from OpenDota. Off by default = fetching enabled.
+	OpenDotaOff bool `json:"opendota_off"`
 	// MapImage is an optional user-supplied minimap background (png/jpg).
 	MapImage string `json:"map_image"`
 }

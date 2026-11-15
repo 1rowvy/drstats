@@ -63,6 +63,14 @@ export function DownloadMatch(input: string): $CancellablePromise<number> {
 }
 
 /**
+ * FetchOpenDota re-queues every match without full OpenDota data (ignoring
+ * the retry delay) and returns how many were queued.
+ */
+export function FetchOpenDota(): $CancellablePromise<number> {
+    return $Call.ByID(3313966313);
+}
+
+/**
  * GetSettings returns the current settings.
  */
 export function GetSettings(): $CancellablePromise<settings$0.Settings> {

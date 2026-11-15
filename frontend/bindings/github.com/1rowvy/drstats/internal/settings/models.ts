@@ -37,6 +37,12 @@ export interface Settings {
     "lh10_goal": number;
 
     /**
+     * OpenDotaOff disables fetching per-match extras (positions, ranks,
+     * benchmarks) from OpenDota. Off by default = fetching enabled.
+     */
+    "opendota_off": boolean;
+
+    /**
      * MapImage is an optional user-supplied minimap background (png/jpg).
      */
     "map_image": string;

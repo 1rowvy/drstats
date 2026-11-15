@@ -4,6 +4,7 @@ package stats
 import (
 	"math"
 
+	"github.com/1rowvy/drstats/internal/opendota"
 	"github.com/1rowvy/drstats/internal/parser"
 	"github.com/1rowvy/drstats/internal/store"
 )
@@ -19,6 +20,9 @@ type PlayerView struct {
 	parser.Player
 	GPM int `json:"gpm"`
 	XPM int `json:"xpm"`
+	// OD are the OpenDota extras (estimated position, rank, party,
+	// benchmarks); nil when not fetched.
+	OD *opendota.Player `json:"od"`
 }
 
 // Line is a time series aligned with Farm.T; nil entries are "no value".
@@ -54,6 +58,8 @@ type MatchView struct {
 	// DeathCtx is aligned with Deaths: where it happened and whether the
 	// victim's team had an observer ward covering the spot.
 	DeathCtx []DeathCtx `json:"death_ctx"`
+	// ODStatus is the OpenDota fetch state: "" (not yet), ok, unparsed, notfound, error.
+	ODStatus string `json:"od_status"`
 	World    [2]float64     `json:"world"` // map coordinate bounds [min, max]
 
 	// Analyses of the focused player (zero values when Focus < 0).
@@ -77,9 +83,19 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 	if v.Deaths == nil {
 		v.Deaths = []parser.Death{}
 	}
+	od, err := st.OpenDotaPlayers(matchID)
+	if err != nil {
+		return nil, err
+	}
+	if v.ODStatus, _, err = st.OpenDotaStatus(matchID); err != nil {
+		return nil, err
+	}
 	minutes := meta.Duration / 60
 	for _, p := range players {
 		pv := PlayerView{Player: p}
+		if x, ok := od[p.HeroID]; ok {
+			pv.OD = &x
+		}
 		if minutes > 0 {
 			pv.GPM = int(math.Round(float64(p.TotalGold) / minutes))
 			pv.XPM = int(math.Round(float64(p.TotalXP) / minutes))

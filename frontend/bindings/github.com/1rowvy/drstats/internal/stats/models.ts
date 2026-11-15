@@ -3,6 +3,9 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as opendota$0 from "../opendota/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as parser$0 from "../parser/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -519,6 +522,11 @@ export interface MatchView {
     "death_ctx": DeathCtx[] | null;
 
     /**
+     * ODStatus is the OpenDota fetch state: "" (not yet), ok, unparsed, notfound, error.
+     */
+    "od_status": string;
+
+    /**
      * map coordinate bounds [min, max]
      */
     "world": number[];
@@ -654,6 +662,12 @@ export interface PlayerView {
     "rune_pickups": number;
     "gpm": number;
     "xpm": number;
+
+    /**
+     * OD are the OpenDota extras (estimated position, rank, party,
+     * benchmarks); nil when not fetched.
+     */
+    "od": opendota$0.Player | null;
 }
 
 /**

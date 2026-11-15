@@ -267,6 +267,7 @@ type MatchRow struct {
 	Denies   int    `json:"denies"`
 	GPM      int    `json:"gpm"`
 	LH10     *int   `json:"lh10"` // last hits at 10:00, nil without a sample
+	Position int    `json:"position"` // OpenDota estimated position 1..5, 0 if unknown
 	// Lane is the detected laning-stage lane; filled by the caller from LaneEarly.
 	Lane      string          `json:"lane"`
 	LaneEarly []parser.Sample `json:"-"`
@@ -280,11 +281,12 @@ func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 		SELECT r.id, r.path, r.status, r.error, r.parser_version, r.mtime,
 		       m.match_id, m.game_mode, m.lobby_type, m.duration, m.end_time, m.winner,
 		       p.player_id, p.team, p.hero_id, p.hero_name, p.kills, p.deaths, p.assists, p.net_worth,
-		       p.name, p.last_hits, p.denies, p.total_gold, s.last_hits
+		       p.name, p.last_hits, p.denies, p.total_gold, s.last_hits, o.position
 		FROM replays r
 		LEFT JOIN matches m ON m.replay_id = r.id
 		LEFT JOIN players p ON p.match_id = m.match_id AND p.account_id = ? AND ? != 0
 		LEFT JOIN series s ON s.match_id = p.match_id AND s.player_id = p.player_id AND s.t = 600
+		LEFT JOIN od_players o ON o.match_id = p.match_id AND o.hero_id = p.hero_id
 		WHERE m.match_id IS NOT NULL OR r.status != 'done'
 		ORDER BY COALESCE(m.end_time, r.mtime) DESC`, accountID, accountID)
 	if err != nil {
@@ -299,11 +301,11 @@ func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 		var dur sql.NullFloat64
 		var pid, team, heroID, k, d, a, nw sql.NullInt64
 		var hero, name sql.NullString
-		var lh, dn, gold, lh10 sql.NullInt64
+		var lh, dn, gold, lh10, pos sql.NullInt64
 		if err := rows.Scan(&r.ReplayID, &r.Path, &r.Status, &r.Error, &pv, &r.MTime,
 			&matchID, &mode, &lobby, &dur, &endTime, &winner,
 			&pid, &team, &heroID, &hero, &k, &d, &a, &nw,
-			&name, &lh, &dn, &gold, &lh10); err != nil {
+			&name, &lh, &dn, &gold, &lh10, &pos); err != nil {
 			return nil, err
 		}
 		r.Stale = r.Status == StatusDone && pv < parser.Version
@@ -313,7 +315,7 @@ func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 			r.Found = true
 			r.PlayerID, r.Team, r.HeroID, r.HeroName = int(pid.Int64), int(team.Int64), int(heroID.Int64), hero.String
 			r.Kills, r.Deaths, r.Assists, r.NetWorth = int(k.Int64), int(d.Int64), int(a.Int64), int(nw.Int64)
-			r.Name, r.LastHits, r.Denies = name.String, int(lh.Int64), int(dn.Int64)
+			r.Name, r.LastHits, r.Denies, r.Position = name.String, int(lh.Int64), int(dn.Int64), int(pos.Int64)
 			if r.Duration >= 60 {
 				r.GPM = int(math.Round(float64(gold.Int64) / (r.Duration / 60)))
 			}

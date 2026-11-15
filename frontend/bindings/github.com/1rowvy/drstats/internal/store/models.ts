@@ -100,6 +100,11 @@ export interface MatchRow {
     "lh10": number | null;
 
     /**
+     * OpenDota estimated position 1..5, 0 if unknown
+     */
+    "position": number;
+
+    /**
      * Lane is the detected laning-stage lane; filled by the caller from LaneEarly.
      */
     "lane": string;

@@ -38,3 +38,8 @@ export const LibraryProgress = "library:progress";
  */
 export const LibraryReplay = "library:replay";
 
+/**
+ * Name of the custom event "opendota:updated".
+ */
+export const OpendotaUpdated = "opendota:updated";
+
