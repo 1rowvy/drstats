@@ -4,13 +4,22 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/1rowvy/drstats/internal/parser"
 )
 
 // Event types stored in the events table.
 const (
-	EventDeath = "death"
+	EventDeath    = "death"    // player_id victim, other_id killer
+	EventPurchase = "purchase" // key item
+	EventCast     = "cast"     // key ability / item_*
+	EventHit      = "hit"      // key ability / item_*
+	EventWard     = "ward"     // key obs|sentry, other_id killer, x/y
+	EventRune     = "rune"     // key rune type
+	EventStack    = "stack"
+	EventBuyback  = "buyback"
 )
 
 // DeathData is the JSON payload of a death event.
@@ -18,6 +27,69 @@ type DeathData struct {
 	Killer    string `json:"killer_name"`
 	Inflictor string `json:"inflictor"`
 	Assists   []int  `json:"assists"`
+	GoldLost  int    `json:"gold_lost,omitempty"`
+	Buyback   bool   `json:"buyback,omitempty"`
+}
+
+// WardData is the JSON payload of a ward event.
+type WardData struct {
+	End       float64 `json:"end"`
+	Team      int     `json:"team"`
+	Destroyed bool    `json:"destroyed,omitempty"`
+	Killer    string  `json:"killer_name,omitempty"`
+}
+
+// RuneData is the JSON payload of a rune event.
+type RuneData struct {
+	Bottled bool `json:"bottled,omitempty"`
+}
+
+// playerCols are the players table columns in parser.Player field order (see playerArgs).
+const playerCols = `player_id, team, team_slot, hero_id, hero_name, name, account_id,
+	kills, deaths, assists, level, last_hits, denies, net_worth, total_gold, total_xp, hero_damage, tower_damage, healing, rank_tier,
+	gold_creep, gold_neutral, gold_hero, gold_building, gold_passive, gold_bounty, gold_roshan, gold_other,
+	gold_lost, buybacks, camps_stacked, stuns, obs_placed, sen_placed, wards_destroyed, rune_pickups`
+
+func playerArgs(p *parser.Player) []any {
+	return []any{&p.PlayerID, &p.Team, &p.TeamSlot, &p.HeroID, &p.HeroName, &p.Name, &p.AccountID,
+		&p.Kills, &p.Deaths, &p.Assists, &p.Level, &p.LastHits, &p.Denies, &p.NetWorth, &p.TotalGold, &p.TotalXP,
+		&p.HeroDamage, &p.TowerDamage, &p.Healing, &p.RankTier,
+		&p.GoldCreep, &p.GoldNeutral, &p.GoldHero, &p.GoldBuilding, &p.GoldPassive, &p.GoldBounty, &p.GoldRoshan, &p.GoldOther,
+		&p.GoldLost, &p.Buybacks, &p.CampsStacked, &p.Stuns, &p.ObsPlaced, &p.SenPlaced, &p.WardsDestroyed, &p.RunePickups}
+}
+
+const seriesCols = `player_id, t, x, y, alive, level, gold, net_worth, total_gold, total_xp, last_hits, denies,
+	gold_creep, gold_neutral, dmg_out, dmg_in`
+
+func sampleArgs(r *parser.Sample) []any {
+	return []any{&r.PlayerID, &r.T, &r.X, &r.Y, &r.Alive, &r.Level, &r.Gold, &r.NetWorth, &r.TotalGold, &r.TotalXP,
+		&r.LastHits, &r.Denies, &r.GoldCreep, &r.GoldNeutral, &r.DmgOut, &r.DmgIn}
+}
+
+// deref turns scan destinations into insert values.
+func deref(ptrs []any) []any {
+	out := make([]any, len(ptrs))
+	for i, p := range ptrs {
+		switch v := p.(type) {
+		case *int:
+			out[i] = *v
+		case *uint32:
+			out[i] = *v
+		case *string:
+			out[i] = *v
+		case *float64:
+			out[i] = *v
+		case *bool:
+			out[i] = *v
+		default:
+			panic(fmt.Sprintf("deref: unsupported %T", p))
+		}
+	}
+	return out
+}
+
+func placeholders(n int) string {
+	return strings.TrimSuffix(strings.Repeat("?, ", n), ", ")
 }
 
 // MatchKey returns the primary key used for a parsed match: its Dota match id,
@@ -53,45 +125,106 @@ func (s *Store) SaveMatch(replayID int64, m *parser.Match) (matchID int64, err e
 		return 0, err
 	}
 
-	ps, err := tx.Prepare(`INSERT INTO players (match_id, player_id, team, team_slot, hero_id, hero_name, name, account_id,
-		kills, deaths, assists, level, last_hits, denies, net_worth, total_gold, total_xp, hero_damage, tower_damage, healing, rank_tier)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	np := len(playerArgs(&parser.Player{}))
+	ps, err := tx.Prepare(`INSERT INTO players (match_id, ` + playerCols + `) VALUES (?, ` + placeholders(np) + `)`)
 	if err != nil {
 		return 0, err
 	}
 	defer ps.Close()
-	for _, p := range m.Players {
-		if _, err = ps.Exec(matchID, p.PlayerID, p.Team, p.TeamSlot, p.HeroID, p.HeroName, p.Name, p.AccountID,
-			p.Kills, p.Deaths, p.Assists, p.Level, p.LastHits, p.Denies, p.NetWorth, p.TotalGold, p.TotalXP,
-			p.HeroDamage, p.TowerDamage, p.Healing, p.RankTier); err != nil {
+	for i := range m.Players {
+		if _, err = ps.Exec(append([]any{matchID}, deref(playerArgs(&m.Players[i]))...)...); err != nil {
 			return 0, err
 		}
 	}
 
-	ss, err := tx.Prepare(`INSERT OR REPLACE INTO series (match_id, player_id, t, x, y, alive, level, gold, net_worth, total_gold, total_xp, last_hits, denies)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	ns := len(sampleArgs(&parser.Sample{}))
+	ss, err := tx.Prepare(`INSERT OR REPLACE INTO series (match_id, ` + seriesCols + `) VALUES (?, ` + placeholders(ns) + `)`)
 	if err != nil {
 		return 0, err
 	}
 	defer ss.Close()
-	for _, r := range m.Series {
-		if _, err = ss.Exec(matchID, r.PlayerID, r.T, r.X, r.Y, r.Alive, r.Level, r.Gold, r.NetWorth, r.TotalGold, r.TotalXP, r.LastHits, r.Denies); err != nil {
+	for i := range m.Series {
+		if _, err = ss.Exec(append([]any{matchID}, deref(sampleArgs(&m.Series[i]))...)...); err != nil {
 			return 0, err
 		}
 	}
 
-	es, err := tx.Prepare(`INSERT INTO events (match_id, t, type, player_id, other_id, x, y, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+	es, err := tx.Prepare(`INSERT INTO events (match_id, t, type, player_id, other_id, x, y, key, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return 0, err
 	}
 	defer es.Close()
+	event := func(t float64, typ string, pid, other int, x, y any, key string, data any) error {
+		d := "{}"
+		if data != nil {
+			b, _ := json.Marshal(data)
+			d = string(b)
+		}
+		_, err := es.Exec(matchID, t, typ, pid, other, x, y, key, d)
+		return err
+	}
 	for _, d := range m.Deaths {
-		data, _ := json.Marshal(DeathData{Killer: d.Killer, Inflictor: d.Inflictor, Assists: d.Assists})
 		var x, y any
 		if d.HasPos {
 			x, y = d.X, d.Y
 		}
-		if _, err = es.Exec(matchID, d.T, EventDeath, d.VictimPID, d.KillerPID, x, y, string(data)); err != nil {
+		data := DeathData{Killer: d.Killer, Inflictor: d.Inflictor, Assists: d.Assists, GoldLost: d.GoldLost, Buyback: d.Buyback}
+		if err = event(d.T, EventDeath, d.VictimPID, d.KillerPID, x, y, "", data); err != nil {
+			return 0, err
+		}
+	}
+	for _, p := range m.Purchases {
+		if err = event(p.T, EventPurchase, p.PlayerID, -1, nil, nil, p.Item, nil); err != nil {
+			return 0, err
+		}
+	}
+	for _, c := range m.Casts {
+		if err = event(c.T, EventCast, c.PlayerID, -1, nil, nil, c.Ability, nil); err != nil {
+			return 0, err
+		}
+	}
+	for _, h := range m.Hits {
+		if err = event(h.T, EventHit, h.PlayerID, -1, nil, nil, h.Ability, nil); err != nil {
+			return 0, err
+		}
+	}
+	for _, w := range m.Wards {
+		key := "obs"
+		if w.Sentry {
+			key = "sentry"
+		}
+		data := WardData{End: w.End, Team: w.Team, Destroyed: w.Destroyed, Killer: w.Killer}
+		if err = event(w.T, EventWard, w.PlayerID, w.KillerPID, w.X, w.Y, key, data); err != nil {
+			return 0, err
+		}
+	}
+	for _, r := range m.Runes {
+		var data any
+		if r.Bottled {
+			data = RuneData{Bottled: true}
+		}
+		if err = event(r.T, EventRune, r.PlayerID, -1, nil, nil, strconv.Itoa(r.Type), data); err != nil {
+			return 0, err
+		}
+	}
+	for _, mk := range m.Stacks {
+		if err = event(mk.T, EventStack, mk.PlayerID, -1, nil, nil, "", nil); err != nil {
+			return 0, err
+		}
+	}
+	for _, mk := range m.Buybacks {
+		if err = event(mk.T, EventBuyback, mk.PlayerID, -1, nil, nil, "", nil); err != nil {
+			return 0, err
+		}
+	}
+
+	cs, err := tx.Prepare(`INSERT INTO combat (match_id, player_id, kind, other, inflictor, amount, count) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return 0, err
+	}
+	defer cs.Close()
+	for _, c := range m.Combat {
+		if _, err = cs.Exec(matchID, c.PlayerID, c.Kind, c.Other, c.Inflictor, c.Amount, c.Count); err != nil {
 			return 0, err
 		}
 	}
@@ -186,71 +319,122 @@ type MatchMeta struct {
 	EndTime   int64   `json:"end_time"`
 }
 
-// Match loads a stored match: meta, players, full series and death events.
-func (s *Store) Match(matchID int64) (*MatchMeta, []parser.Player, []parser.Sample, []parser.Death, error) {
+// Match loads a stored match: meta and everything parsed (players, series,
+// events, combat aggregates) as a parser.Match.
+func (s *Store) Match(matchID int64) (*MatchMeta, *parser.Match, error) {
 	var mm MatchMeta
 	err := s.db.QueryRow(`SELECT m.match_id, m.replay_id, r.path, m.game_build, m.game_mode, m.lobby_type, m.winner, m.duration, m.end_time
 		FROM matches m JOIN replays r ON r.id = m.replay_id WHERE m.match_id = ?`, matchID).
 		Scan(&mm.MatchID, &mm.ReplayID, &mm.Path, &mm.GameBuild, &mm.GameMode, &mm.LobbyType, &mm.Winner, &mm.Duration, &mm.EndTime)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("match %d: %w", matchID, err)
+		return nil, nil, fmt.Errorf("match %d: %w", matchID, err)
 	}
-
-	var players []parser.Player
-	rows, err := s.db.Query(`SELECT player_id, team, team_slot, hero_id, hero_name, name, account_id, kills, deaths, assists, level,
-		last_hits, denies, net_worth, total_gold, total_xp, hero_damage, tower_damage, healing, rank_tier
-		FROM players WHERE match_id = ? ORDER BY player_id`, matchID)
+	m := &parser.Match{
+		MatchID: uint64(max(0, mm.MatchID)), GameBuild: uint32(mm.GameBuild), GameMode: mm.GameMode, LobbyType: mm.LobbyType,
+		Winner: mm.Winner, Duration: mm.Duration, EndTime: mm.EndTime,
+	}
+	if m.Players, err = s.players(`match_id = ?`, matchID); err != nil {
+		return nil, nil, err
+	}
+	if m.Series, err = s.series(matchID, -1); err != nil {
+		return nil, nil, err
+	}
+	if err = s.events(m, matchID); err != nil {
+		return nil, nil, err
+	}
+	rows, err := s.db.Query(`SELECT player_id, kind, other, inflictor, amount, count FROM combat WHERE match_id = ?`, matchID)
 	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	for rows.Next() {
-		var p parser.Player
-		if err := rows.Scan(&p.PlayerID, &p.Team, &p.TeamSlot, &p.HeroID, &p.HeroName, &p.Name, &p.AccountID, &p.Kills, &p.Deaths,
-			&p.Assists, &p.Level, &p.LastHits, &p.Denies, &p.NetWorth, &p.TotalGold, &p.TotalXP, &p.HeroDamage, &p.TowerDamage,
-			&p.Healing, &p.RankTier); err != nil {
-			rows.Close()
-			return nil, nil, nil, nil, err
-		}
-		players = append(players, p)
-	}
-	rows.Close()
-
-	var series []parser.Sample
-	rows, err = s.db.Query(`SELECT player_id, t, x, y, alive, level, gold, net_worth, total_gold, total_xp, last_hits, denies
-		FROM series WHERE match_id = ? ORDER BY player_id, t`, matchID)
-	if err != nil {
-		return nil, nil, nil, nil, err
-	}
-	for rows.Next() {
-		var r parser.Sample
-		if err := rows.Scan(&r.PlayerID, &r.T, &r.X, &r.Y, &r.Alive, &r.Level, &r.Gold, &r.NetWorth, &r.TotalGold, &r.TotalXP,
-			&r.LastHits, &r.Denies); err != nil {
-			rows.Close()
-			return nil, nil, nil, nil, err
-		}
-		series = append(series, r)
-	}
-	rows.Close()
-
-	var deaths []parser.Death
-	rows, err = s.db.Query(`SELECT t, player_id, other_id, x, y, data FROM events WHERE match_id = ? AND type = ? ORDER BY t`,
-		matchID, EventDeath)
-	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var d parser.Death
-		var x, y sql.NullFloat64
-		var data string
-		if err := rows.Scan(&d.T, &d.VictimPID, &d.KillerPID, &x, &y, &data); err != nil {
-			return nil, nil, nil, nil, err
+		var c parser.CombatStat
+		if err := rows.Scan(&c.PlayerID, &c.Kind, &c.Other, &c.Inflictor, &c.Amount, &c.Count); err != nil {
+			return nil, nil, err
 		}
-		var dd DeathData
-		_ = json.Unmarshal([]byte(data), &dd)
-		d.Killer, d.Inflictor, d.Assists = dd.Killer, dd.Inflictor, dd.Assists
-		d.X, d.Y, d.HasPos = x.Float64, y.Float64, x.Valid
-		deaths = append(deaths, d)
+		m.Combat = append(m.Combat, c)
 	}
-	return &mm, players, series, deaths, rows.Err()
+	return &mm, m, rows.Err()
+}
+
+func (s *Store) players(where string, args ...any) ([]parser.Player, error) {
+	rows, err := s.db.Query(`SELECT `+playerCols+` FROM players WHERE `+where+` ORDER BY player_id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []parser.Player
+	for rows.Next() {
+		var p parser.Player
+		if err := rows.Scan(playerArgs(&p)...); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// series loads the time series of a match (pid < 0: all players).
+func (s *Store) series(matchID int64, pid int) ([]parser.Sample, error) {
+	rows, err := s.db.Query(`SELECT `+seriesCols+` FROM series WHERE match_id = ? AND (? < 0 OR player_id = ?) ORDER BY player_id, t`,
+		matchID, pid, pid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []parser.Sample
+	for rows.Next() {
+		var r parser.Sample
+		if err := rows.Scan(sampleArgs(&r)...); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) events(m *parser.Match, matchID int64) error {
+	rows, err := s.db.Query(`SELECT t, type, player_id, other_id, x, y, key, data FROM events WHERE match_id = ? ORDER BY t, id`, matchID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var t float64
+		var typ, key, data string
+		var pid, other int
+		var x, y sql.NullFloat64
+		if err := rows.Scan(&t, &typ, &pid, &other, &x, &y, &key, &data); err != nil {
+			return err
+		}
+		switch typ {
+		case EventDeath:
+			var dd DeathData
+			_ = json.Unmarshal([]byte(data), &dd)
+			m.Deaths = append(m.Deaths, parser.Death{T: t, VictimPID: pid, KillerPID: other, Killer: dd.Killer,
+				Inflictor: dd.Inflictor, Assists: dd.Assists, X: x.Float64, Y: y.Float64, HasPos: x.Valid,
+				GoldLost: dd.GoldLost, Buyback: dd.Buyback})
+		case EventPurchase:
+			m.Purchases = append(m.Purchases, parser.Purchase{T: t, PlayerID: pid, Item: key})
+		case EventCast:
+			m.Casts = append(m.Casts, parser.Cast{T: t, PlayerID: pid, Ability: key})
+		case EventHit:
+			m.Hits = append(m.Hits, parser.Hit{T: t, PlayerID: pid, Ability: key})
+		case EventWard:
+			var wd WardData
+			_ = json.Unmarshal([]byte(data), &wd)
+			m.Wards = append(m.Wards, parser.Ward{T: t, End: wd.End, PlayerID: pid, Team: wd.Team, Sentry: key == "sentry",
+				X: x.Float64, Y: y.Float64, Destroyed: wd.Destroyed, KillerPID: other, Killer: wd.Killer})
+		case EventRune:
+			var rd RuneData
+			_ = json.Unmarshal([]byte(data), &rd)
+			typ, _ := strconv.Atoi(key)
+			m.Runes = append(m.Runes, parser.Rune{T: t, PlayerID: pid, Type: typ, Bottled: rd.Bottled})
+		case EventStack:
+			m.Stacks = append(m.Stacks, parser.Mark{T: t, PlayerID: pid})
+		case EventBuyback:
+			m.Buybacks = append(m.Buybacks, parser.Mark{T: t, PlayerID: pid})
+		}
+	}
+	return rows.Err()
 }

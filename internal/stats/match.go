@@ -57,10 +57,11 @@ type MatchView struct {
 // BuildMatchView loads a match and derives the view for the given focus:
 // focusPID >= 0 picks a player explicitly, otherwise accountID selects "me".
 func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID int) (*MatchView, error) {
-	meta, players, series, deaths, err := st.Match(matchID)
+	meta, m, err := st.Match(matchID)
 	if err != nil {
 		return nil, err
 	}
+	players, series, deaths := m.Players, m.Series, m.Deaths
 	v := &MatchView{Meta: *meta, Focus: -1, Opponent: -1, Deaths: deaths, World: [2]float64{parser.WorldMin, parser.WorldMax}}
 	if v.Deaths == nil {
 		v.Deaths = []parser.Death{}
