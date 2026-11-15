@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Api, Dashboard, Filter, Habit } from "../api";
-import { relDate, duration, gameMode, LANES, laneName, METRICS, pct, WEEKDAYS } from "../format";
+import { Api, Bucket, Dashboard, Filter } from "../api";
+import { clock, duration, pct, plural, relDate, WEEKDAYS } from "../format";
 import { useNames } from "../names";
-import { HeroName } from "../components/HeroBadge";
-import { BarChart, TrendChart } from "../components/Chart";
-import { MapCanvas } from "../components/MapCanvas";
+import { HeroBadge } from "../components/HeroBadge";
 
-const EMPTY_FILTER: Filter = { hero_id: 0, days: 0, last: 0, result: "", mode: 0, lane: "" };
+const ACTIVITY_WEEKS = 12;
 
 /** Loads the dashboard for a filter; reloads when matches change (tick). */
 export function useDashboard(filter: Filter, tick: number) {
@@ -20,267 +18,266 @@ export function useDashboard(filter: Filter, tick: number) {
   return { d, error };
 }
 
-export function RecentTable({ d, onMatch }: { d: Dashboard; onMatch: (id: number) => void }) {
-  return (
-    <div className="card">
-      <h2>Последние матчи</h2>
-      <table className="table">
-        <thead><tr><th>Герой</th><th>Результат</th><th>K / D / A</th><th>Линия</th><th>Длительность</th><th>Дата</th></tr></thead>
-        <tbody>
-          {(d.recent ?? []).map((g) => (
-            <tr key={g.match_id} className="clickable" onClick={() => onMatch(g.match_id)}>
-              <td><HeroName npc={g.hero_name} /></td>
-              <td>{g.win ? <span className="pill win">Победа</span> : <span className="pill loss">Поражение</span>}</td>
-              <td className="num">{g.kills}/{g.deaths}/{g.assists}</td>
-              <td className="dim">{laneName(g.lane, g.team)}</td>
-              <td className="num">{duration(g.duration)}</td>
-              <td className="dim">{relDate(g.end_time)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 export function DashboardPage({ tick, onMatch, onHero }: {
   tick: number; onMatch: (id: number) => void; onHero: (heroID: number) => void;
 }) {
-  const [filter, setFilter] = useState<Filter>(EMPTY_FILTER);
-  const { d, error } = useDashboard(filter, tick);
+  const [days, setDays] = useState(ACTIVITY_WEEKS * 7);
+  const { d, error } = useDashboard({ hero_id: 0, days, last: 0, result: "", mode: 0, lane: "" }, tick);
+  // Nothing in the last 12 weeks but older matches exist: show all time.
+  useEffect(() => {
+    if (d && days && d.games === 0 && d.total > 0) setDays(0);
+  }, [d, days]);
   if (error) return <div className="notice bad">{error}</div>;
   if (!d) return <div className="dim">Загрузка…</div>;
-  return (
-    <div>
-      <div className="page-head"><h1>Дашборд</h1></div>
-      <Filters d={d} filter={filter} onChange={setFilter} />
-      <Body d={d} onMatch={onMatch} onHero={onHero} />
-    </div>
-  );
+  if (d.unknown) return <div className="notice">Укажи свой Steam ID на странице «Импорт» — дашборд строится по твоим матчам.</div>;
+  if (d.total === 0) return <div className="card empty">Разобранных матчей с твоим участием пока нет.</div>;
+  return <Body d={d} days={days} setDays={setDays} onMatch={onMatch} onHero={onHero} />;
 }
 
-export function Filters({ d, filter, onChange, hideHero }: {
-  d: Dashboard; filter: Filter; onChange: (f: Filter) => void; hideHero?: boolean;
+function Body({ d, days, setDays, onMatch, onHero }: {
+  d: Dashboard; days: number; setDays: (n: number) => void; onMatch: (id: number) => void; onHero: (heroID: number) => void;
 }) {
   const names = useNames();
-  const set = <K extends keyof Filter>(k: K, v: Filter[K]) => onChange({ ...filter, [k]: v });
+  const gpm = (d.averages ?? []).find((a) => a.key === "gpm");
+  const form = (d.trend ?? []).slice(-20);
+  const x = d.extras;
   return (
-    <div className="filters">
-      {!hideHero && (
-        <select value={filter.hero_id} onChange={(e) => set("hero_id", Number(e.target.value))}>
-          <option value={0}>Все герои</option>
-          {(d.heroes ?? []).map((h) => <option key={h.hero_id} value={h.hero_id}>{names.hero(h.hero_name)} ({h.games})</option>)}
-        </select>
-      )}
-      <select value={filter.days} onChange={(e) => set("days", Number(e.target.value))}>
-        <option value={0}>За всё время</option>
-        <option value={7}>7 дней</option>
-        <option value={30}>30 дней</option>
-        <option value={90}>90 дней</option>
-        <option value={365}>Год</option>
-      </select>
-      <select value={filter.last} onChange={(e) => set("last", Number(e.target.value))}>
-        <option value={0}>Все матчи</option>
-        <option value={20}>Последние 20</option>
-        <option value={50}>Последние 50</option>
-        <option value={100}>Последние 100</option>
-      </select>
-      <div className="seg">
-        {[["", "Все"], ["win", "Победы"], ["loss", "Поражения"]].map(([k, l]) => (
-          <button key={k} className={filter.result === k ? "on" : ""} onClick={() => set("result", k)}>{l}</button>
+    <div>
+      <div className="card dash-hero">
+        <div className="watermark">{d.games}</div>
+        <div style={{ position: "relative" }}>
+          <div className="caps" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {days ? `Последние ${ACTIVITY_WEEKS} недель` : "За всё время"}
+            <button className="link caps" style={{ color: "var(--accent)" }} onClick={() => setDays(days ? 0 : ACTIVITY_WEEKS * 7)}>
+              {days ? "всё время" : `${ACTIVITY_WEEKS} недель`}
+            </button>
+          </div>
+          <h1>Твоя дота в цифрах</h1>
+          <div className="big-row">
+            <div><b>{d.games}</b><div className="caps">{plural(d.games, "матч", "матча", "матчей")}</div></div>
+            <div><b className={d.winrate >= 0.5 ? "accent" : "loss"}>{pct(d.winrate)}</b><div className="caps">побед</div></div>
+            <div><b>{Math.round(x.hours)} ч</b><div className="caps">в игре</div></div>
+            <div><b>{gpm?.n ? Math.round(gpm.avg) : "—"}</b><div className="caps">средний GPM</div></div>
+          </div>
+          {form.length > 0 && (
+            <div style={{ marginTop: 22 }}>
+              <div className="caps">Форма, последние {form.length} · слева старые</div>
+              <div className="form-row">
+                {form.map((g) => (
+                  <span key={g.match_id} className={g.win ? "w" : "l"} title={`${names.hero(g.hero_name)} · ${relDate(g.end_time)}`} onClick={() => onMatch(g.match_id)}>
+                    {g.win ? "В" : "П"}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid-side" style={{ gridTemplateColumns: "1fr 330px", marginTop: 14 }}>
+        <Activity d={d} />
+        <div className="card">
+          <div className="card-head"><h2>Пул героев</h2></div>
+          <HeroPool d={d} onHero={onHero} />
+        </div>
+      </div>
+
+      <div className="section-head"><h2>Рекорды</h2></div>
+      <Records d={d} onMatch={onMatch} />
+
+      <div className="grid2" style={{ marginTop: 14 }}>
+        <PartyCard d={d} />
+        <div className="card">
+          <div className="card-head"><h2>Когда лучше не играть</h2></div>
+          <DayParts hours={d.by_hour ?? []} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- activity
+
+function Activity({ d }: { d: Dashboard }) {
+  const byDate = new Map((d.extras.days ?? []).map((b) => [b.date, b]));
+  // Columns are weeks (oldest left), rows Mon..Sun.
+  const today = new Date();
+  const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - ((today.getDay() + 6) % 7));
+  const weeks: Date[] = [];
+  for (let w = ACTIVITY_WEEKS - 1; w >= 0; w--) weeks.push(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7 * w));
+  const key = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  const color = (n: number) => n === 0 ? "#171a21" : ["rgba(255,173,51,.25)", "rgba(255,173,51,.42)", "rgba(255,173,51,.6)", "rgba(255,173,51,.8)", "#ffad33"][Math.min(5, n) - 1];
+  // Peak: best weekday + day part by number of games.
+  const wd = [...(d.by_weekday ?? [])].sort((a, b) => b.games - a.games).filter((b) => b.games > 0).slice(0, 2);
+  const parts = dayParts(d.by_hour ?? []).sort((a, b) => b.games - a.games)[0];
+  const WD_LONG = ["", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
+  const peak = wd.length && parts?.games ? `Пик — ${wd.map((b) => WD_LONG[Number(b.key)]).join(" и ")} ${parts.when.toLowerCase()}` : "";
+  return (
+    <div className="card">
+      <div className="card-head"><h2>Активность</h2><span className="meta">{peak}</span></div>
+      <div className="heat-grid" style={{ gridTemplateColumns: `22px repeat(${ACTIVITY_WEEKS}, 1fr)` }}>
+        {[1, 2, 3, 4, 5, 6, 7].map((row) => (
+          <Row key={row} label={row % 2 === 1 ? WEEKDAYS[row] : ""}>
+            {weeks.map((w, i) => {
+              const day = new Date(w.getFullYear(), w.getMonth(), w.getDate() + row - 1);
+              const b = byDate.get(key(day));
+              const future = day > today;
+              return (
+                <div key={i} className="cell" style={{ background: future ? "transparent" : color(b?.games ?? 0) }}
+                  title={future ? "" : `${day.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}: ${b ? `${b.games} ${plural(b.games, "игра", "игры", "игр")}, ${b.wins} ${plural(b.wins, "победа", "победы", "побед")}` : "не играл"}`} />
+              );
+            })}
+          </Row>
         ))}
       </div>
-      <select value={filter.mode} onChange={(e) => set("mode", Number(e.target.value))}>
-        <option value={0}>Все режимы</option>
-        {(d.modes ?? []).map((m) => <option key={m} value={m}>{gameMode(m, 0)}</option>)}
-      </select>
-      <select value={filter.lane} onChange={(e) => set("lane", e.target.value)}>
-        <option value="">Все линии</option>
-        {["top", "mid", "bot", "jungle", "roam"].map((l) => <option key={l} value={l}>{LANES[l]}</option>)}
-      </select>
-      {JSON.stringify(filter) !== JSON.stringify({ ...EMPTY_FILTER, hero_id: filter.hero_id }) && (
-        <button className="link" onClick={() => onChange({ ...EMPTY_FILTER, hero_id: hideHero ? filter.hero_id : 0 })}>сбросить</button>
-      )}
+      <div className="heat-legend">0 {[1, 2, 3, 4, 5].map((n) => <i key={n} style={{ background: color(n) }} />)} 5+ игр</div>
     </div>
   );
 }
 
-function Body({ d, onMatch, onHero }: { d: Dashboard; onMatch: (id: number) => void; onHero: (heroID: number) => void }) {
-  if (d.unknown) return <div className="notice">Укажи свой Steam ID в настройках — агрегаты считаются по твоим матчам.</div>;
-  if (d.total === 0) return <div className="empty">Разобранных матчей с твоим участием пока нет.</div>;
-  if (d.games === 0) return <div className="empty">Под фильтр не попал ни один матч.</div>;
-  const byHero = (d.by_hero ?? []).slice(0, 25);
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return <><span className="lbl">{label}</span>{children}</>;
+}
+
+// ---------------------------------------------------------------- heroes
+
+function HeroPool({ d, onHero }: { d: Dashboard; onHero: (id: number) => void }) {
+  const names = useNames();
+  const top = (d.by_hero ?? []).slice(0, 5);
+  const max = Math.max(1, ...top.map((b) => b.games));
   const heroID = (npc: string) => (d.heroes ?? []).find((h) => h.hero_name === npc)?.hero_id ?? 0;
   return (
-    <>
-      <Summary d={d} />
-      <HabitsCard habits={d.habits ?? []} />
-      <TrendCard d={d} />
-      <div className="grid2">
-        <div className="card">
-          <BarChart title="Винрейт по дням недели" fmt={(v) => pct(v)} max={1} height={220}
-            bars={(d.by_weekday ?? []).map((b) => wrBar(WEEKDAYS[Number(b.key)], b))} />
-        </div>
-        <div className="card">
-          <BarChart title="Винрейт по часу начала" fmt={(v) => pct(v)} max={1} height={220}
-            bars={(d.by_hour ?? []).map((b) => wrBar(b.key, b))} />
-        </div>
-      </div>
-      <div className="grid2">
-        <div className="card list-card" style={{ maxHeight: 520 }}>
-          <h2>Герои</h2>
-          <table className="table">
-            <thead><tr><th>Герой</th><th>Матчи</th><th>Винрейт</th><th>KDA</th><th>GPM</th></tr></thead>
-            <tbody>
-              {byHero.map((b) => (
-                <tr key={b.key} className="clickable" onClick={() => onHero(heroID(b.key))}>
-                  <td><HeroName npc={b.key} /></td>
-                  <td>{b.games}</td>
-                  <td><Winrate b={b} /></td>
-                  <td>{b.kda.toFixed(2)}</td>
-                  <td>{Math.round(b.gpm)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="card">
-          <h2>Линии</h2>
-          <table className="table">
-            <thead><tr><th>Линия</th><th>Матчи</th><th>Винрейт</th><th>KDA</th><th>GPM</th></tr></thead>
-            <tbody>
-              {(d.by_lane ?? []).map((b) => (
-                <tr key={b.key}><td>{LANES[b.key] ?? b.key}</td><td>{b.games}</td><td><Winrate b={b} /></td><td>{b.kda.toFixed(2)}</td><td>{Math.round(b.gpm)}</td></tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="dim small">Линия определяется по позициям на 1–10 минуте.</div>
-        </div>
-      </div>
-      <DeathMap d={d} />
-      <RecentTable d={d} onMatch={onMatch} />
-    </>
-  );
-}
-
-/** Winrate bar; played buckets with 0% still get a visible stub. */
-function wrBar(label: string, b: { games: number; wins: number; winrate: number }) {
-  return {
-    label, value: b.games ? Math.max(b.winrate, 0.02) : 0, color: wrColor(b),
-    text: b.games ? pct(b.winrate) : "—", tip: `${b.wins} из ${b.games}`,
-  };
-}
-
-function wrColor(b: { games: number; winrate: number }) {
-  if (b.games === 0) return "#3a4150";
-  return b.winrate >= 0.5 ? "#5fd17a" : "#ff6b5b";
-}
-
-function Winrate({ b }: { b: { winrate: number; wins: number; games: number } }) {
-  return <span className={b.winrate >= 0.5 ? "win" : "loss"} title={`${b.wins} из ${b.games}`}>{pct(b.winrate)}</span>;
-}
-
-export function Summary({ d }: { d: Dashboard }) {
-  const avg = (k: string) => (d.averages ?? []).find((a) => a.key === k);
-  const show = ["kda", "gpm", "xpm", "lh10", "deaths10", "kp", "hero_dmg_pm", "wards"];
-  return (
-    <div className="stat-row">
-      <div className="stat">
-        <div className="stat-label">Матчей</div>
-        <div className="stat-value">{d.games}</div>
-        <div className="stat-sub">{d.wins} побед · <span className={d.winrate >= 0.5 ? "win" : "loss"}>{pct(d.winrate, 1)}</span></div>
-      </div>
-      {show.map((k) => {
-        const a = avg(k);
-        if (!a || a.n === 0) return null;
-        return (
-          <div className="stat" key={k}>
-            <div className="stat-label">{METRICS[k].label}</div>
-            <div className="stat-value">{METRICS[k].fmt(a.avg)}</div>
-            <div className="stat-sub">в среднем</div>
+    <div className="pool">
+      {top.map((b) => (
+        <div key={b.key} className="row" onClick={() => onHero(heroID(b.key))}>
+          <HeroBadge npc={b.key} size={28} />
+          <div>
+            <div className="top"><span>{names.hero(b.key)}</span><span className="mono">{pct(b.winrate)} · {b.games}</span></div>
+            <div className={`bar ${b.winrate < 0.45 ? "bad" : ""}`}><div style={{ width: `${(b.games / max) * 100}%` }} /></div>
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }
 
-export function HabitsCard({ habits }: { habits: Habit[] }) {
-  const worse = habits.filter((h) => h.worse);
-  const better = habits.filter((h) => h.change >= 0.1);
+// ---------------------------------------------------------------- records
+
+function Records({ d, onMatch }: { d: Dashboard; onMatch: (id: number) => void }) {
+  const names = useNames();
+  const rec = (k: string) => (d.extras.records ?? []).find((r) => r.key === k);
+  const sub = (r: { hero_name: string; end_time: number }, extra?: string) =>
+    [names.hero(r.hero_name), relDate(r.end_time).replace(/, \d\d:\d\d$/, ""), extra].filter(Boolean).join(" · ");
+  // Fastest purchase of the most often bought key item.
+  const fast = useMemo(() => {
+    const cost = (k: string) => names.raw.items?.[k]?.cost ?? 0;
+    return [...(d.extras.fastest ?? [])].filter((f) => cost(f.item) >= 1800 && f.n >= 2 && !/^(aegis|cheese|refresher_shard)$/.test(f.item))
+      .sort((a, b) => b.n - a.n)[0];
+  }, [d, names]);
+  const cards: { label: string; value: string; sub: string; tone?: string; id?: number }[] = [];
+  const g = rec("max_gpm"), k = rec("max_kills"), dmg = rec("max_hero_dmg"), long = rec("longest");
+  if (g) cards.push({ label: "Макс. GPM", value: String(Math.round(g.value)), sub: sub(g), tone: "accent", id: g.match_id });
+  if (k) cards.push({ label: "Больше всего убийств", value: String(k.value), sub: sub(k), id: k.match_id });
+  if (fast) cards.push({ label: `Самый быстрый ${names.inflictor("item_" + fast.item)}`, value: clock(fast.t), sub: sub(fast), id: fast.match_id });
+  if (dmg) cards.push({ label: "Урон по героям", value: `${(dmg.value / 1000).toFixed(1)}k`, sub: sub(dmg), id: dmg.match_id });
+  if (long) cards.push({ label: "Самая длинная игра", value: duration(long.value), sub: sub(long, long.win ? "победа" : "поражение"), id: long.match_id });
+  const st = d.extras.streak;
+  if (st.len > 0) cards.push({
+    label: "Серия побед", value: String(st.len), tone: "win",
+    sub: st.len > 1 ? `подряд · ${relDate(st.from).replace(/, \d\d:\d\d$/, "")} – ${relDate(st.to).replace(/, \d\d:\d\d$/, "")}` : "пока одна",
+  });
+  return (
+    <div className="grid3">
+      {cards.map((c) => (
+        <div key={c.label} className={`stat ${c.id ? "record" : ""}`} onClick={() => c.id && onMatch(c.id)}>
+          <div className="caps">{c.label}</div>
+          <div className={`stat-value ${c.tone ?? ""}`}>{c.value}</div>
+          <div className="stat-sub">{c.sub}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PartyCard({ d }: { d: Dashboard }) {
+  const { party, solo } = d.extras;
+  let note = "Нет данных о пати — они приходят с OpenDota.";
+  if (party.games >= 3 && solo.games >= 3) {
+    const diff = Math.round((party.winrate - solo.winrate) * 100);
+    note = diff >= 5 ? `С пати выигрываешь на ${diff}% чаще. Зови кентов.`
+      : diff <= -5 ? `Соло выигрываешь на ${-diff}% чаще. Кенты тянут вниз?`
+      : "С пати и соло играешь примерно одинаково.";
+  } else if (party.games + solo.games > 0) note = "Мало игр, чтобы сравнивать.";
+  const tile = (label: string, b: Bucket, good: boolean) => (
+    <div className="tile" style={{ padding: "14px 16px" }}>
+      <div className="label">{label} · {b.games} {plural(b.games, "игра", "игры", "игр")}</div>
+      <div className={`val ${b.games ? (good ? "win" : "") : "faint"}`} style={{ fontSize: 30 }}>{b.games ? pct(b.winrate) : "—"}</div>
+    </div>
+  );
   return (
     <div className="card">
-      <h2>Худшие привычки <span className="dim small">последние 10 матчей против предыдущих</span></h2>
-      {habits.length === 0 ? (
-        <div className="dim">Нужно хотя бы 15 матчей под фильтром.</div>
-      ) : worse.length === 0 ? (
-        <div className="dim">Последние 10 матчей не хуже среднего — так держать.</div>
-      ) : (
-        <div className="habits">
-          {worse.map((h) => <HabitChip key={h.key} h={h} />)}
-        </div>
-      )}
-      {better.length > 0 && (
-        <div className="habits" style={{ marginTop: 10 }}>
-          <span className="dim small">Стало лучше:</span>
-          {better.map((h) => <HabitChip key={h.key} h={h} />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HabitChip({ h }: { h: Habit }) {
-  const m = METRICS[h.key];
-  return (
-    <div className={`habit ${h.worse ? "bad" : "good"}`}>
-      <b>{m?.label ?? h.key}</b>
-      <span>{m ? m.fmt(h.recent) : h.recent.toFixed(1)} <span className="dim">vs {m ? m.fmt(h.before) : h.before.toFixed(1)}</span></span>
-      <span className={h.worse ? "loss" : "win"}>{h.change > 0 ? "+" : ""}{pct(h.change)}</span>
-    </div>
-  );
-}
-
-export function TrendCard({ d }: { d: Dashboard }) {
-  const [metric, setMetric] = useState("kda");
-  const trend = d.trend ?? [];
-  const m = METRICS[metric];
-  const data = useMemo(() => ({
-    labels: trend.map((g, i) => String(i + 1)),
-    values: trend.map((g) => g.values?.[metric] ?? null),
-    wins: trend.map((g) => g.win),
-  }), [trend, metric]);
-  if (trend.length < 2) return null;
-  return (
-    <div className="card">
-      <div className="page-head" style={{ marginBottom: 0 }}>
-        <h2 style={{ margin: 0 }}>Тренд за последние {trend.length} матчей</h2>
-        <select value={metric} onChange={(e) => setMetric(e.target.value)}>
-          {Object.entries(METRICS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
+      <div className="card-head"><h2>С пати или соло</h2></div>
+      <div className="tiles">
+        {tile("С кентами", party, party.winrate >= solo.winrate)}
+        {tile("Соло", solo, solo.winrate > party.winrate)}
       </div>
-      <TrendChart title="" labels={data.labels} values={data.values} wins={data.wins} fmt={m.fmt} />
+      <div className="note">{note}</div>
     </div>
   );
 }
 
-export function DeathMap({ d, title = "Где я умираю" }: { d: Dashboard; title?: string }) {
-  const [mode, setMode] = useState<"heat" | "points">("heat");
-  const deaths = d.deaths ?? [];
-  if (deaths.length === 0) return null;
+// ---------------------------------------------------------------- day parts
+
+const DAY_PARTS = [
+  { label: "Утро", from: 6, to: 12, when: "Утром" },
+  { label: "День", from: 12, to: 18, when: "Днём" },
+  { label: "Вечер", from: 18, to: 24, when: "Вечером" },
+  { label: "Ночь", from: 0, to: 6, when: "Ночью" },
+];
+
+function dayParts(hours: Bucket[]) {
+  return DAY_PARTS.map((p) => {
+    const bs = hours.filter((b) => Number(b.key) >= p.from && Number(b.key) < p.to);
+    const games = bs.reduce((a, b) => a + b.games, 0);
+    const wins = bs.reduce((a, b) => a + b.wins, 0);
+    return { ...p, games, wins, wr: games ? wins / games : 0 };
+  });
+}
+
+/** Winrate by time of day as four bars; worst part in red, best in accent. */
+export function DayParts({ hours }: { hours: Bucket[] }) {
+  const parts = dayParts(hours);
+  const played = parts.filter((p) => p.games >= 3);
+  const best = played.length > 1 ? played.reduce((a, b) => (b.wr > a.wr ? b : a)) : null;
+  const worst = played.length > 1 ? played.reduce((a, b) => (b.wr < a.wr ? b : a)) : null;
+  let note = "";
+  if (worst) {
+    const rest = parts.filter((p) => p !== worst);
+    const rg = rest.reduce((a, p) => a + p.games, 0), rw = rest.reduce((a, p) => a + p.wins, 0);
+    const lossW = 1 - worst.wr, lossR = rg ? 1 - rw / rg : 0;
+    if (lossR > 0 && lossW / lossR >= 1.3) {
+      const k = lossW / lossR;
+      note = `${worst.when} сливаешь в ${k >= 1.95 ? `${Math.round(k)} раза` : `${k.toFixed(1).replace(".", ",")} раза`} чаще.${worst.from === 0 ? " Иди спать." : ""}`;
+    }
+  }
   return (
-    <div className="card">
-      <div className="page-head">
-        <h2 style={{ margin: 0 }}>{title} <span className="dim small">{deaths.length} смертей</span></h2>
-        <div className="seg">
-          <button className={mode === "heat" ? "on" : ""} onClick={() => setMode("heat")}>Тепловая карта</button>
-          <button className={mode === "points" ? "on" : ""} onClick={() => setMode("points")}>Точки</button>
-        </div>
+    <div>
+      <div className="dayparts">
+        {parts.map((p) => {
+          const color = p.games === 0 ? "#1f232c" : p === worst && worst !== best && p.wr < 0.5 ? "var(--loss)" : p === best ? "var(--accent)" : "#2c313c";
+          return (
+            <div className="col" key={p.label}>
+              <b className={p === worst && p.wr < 0.5 ? "loss" : ""}>{p.games ? pct(p.wr) : "—"}</b>
+              <div className="b" style={{ height: `${Math.max(4, p.wr * 100)}%`, background: color }} />
+            </div>
+          );
+        })}
       </div>
-      <MapCanvas world={d.world} size={560}
-        heat={mode === "heat" ? deaths.map((p) => [p.x, p.y]) : undefined}
-        points={mode === "points" ? deaths.map((p) => ({ x: p.x, y: p.y, color: p.t < 600 ? "#f2c14e" : "#ff6b5b" })) : []} />
-      {mode === "points" && <div className="legend"><span><span className="dot" style={{ background: "#f2c14e" }} /> до 10:00</span><span><span className="dot" style={{ background: "#ff6b5b" }} /> позже</span></div>}
+      <div className="dayparts-labels">
+        {parts.map((p) => <div key={p.label}><span>{p.label}</span><small>{p.games} {plural(p.games, "игра", "игры", "игр")}</small></div>)}
+      </div>
+      {note && <div className="note">{note}</div>}
     </div>
   );
 }
+

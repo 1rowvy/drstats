@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Bucket, Dashboard, Filter, Habit } from "../api";
-import { clock, LANES, METRICS, pct, plural, regionName } from "../format";
+import type { Dashboard, Filter, Habit } from "../api";
+import { clock, METRICS, pct, plural, regionName, roleName, upperFirst } from "../format";
 import { useNames } from "../names";
-import { HeroBadge } from "../components/HeroBadge";
-import { Icon } from "../components/Icon";
+import { HeroBadge, initials } from "../components/HeroBadge";
 import { MapCanvas } from "../components/MapCanvas";
-import { RecentTable, useDashboard } from "./Dashboard";
+import { DayParts, useDashboard } from "./Dashboard";
 
 const CONSUMABLE = /^(tango|flask|clarity|ward_|tpscroll|smoke_of_deceit|dust|enchanted_mango|faerie_fire|blood_grenade|branches|tome_of_knowledge)/;
 const LOWER_BETTER = new Set(["deaths", "deaths10", "gold_lost"]);
@@ -32,20 +31,24 @@ export function HeroPage({ heroID, tick, onHero, onMatch }: {
 
   if (error) return <div className="notice bad">{error}</div>;
   if (!d) return <div className="dim">Загрузка…</div>;
-  if (d.unknown) return <div className="notice">Укажи свой Steam ID в настройках — страницы героев строятся по твоим матчам.</div>;
+  if (d.unknown) return <div className="notice">Укажи свой Steam ID на странице «Импорт» — страницы героев строятся по твоим матчам.</div>;
   if (heroID === 0) return <div className="card empty">Разобранных матчей с твоим участием пока нет.</div>;
 
   const heroes = d.heroes ?? [];
   const npc = names.raw.hero_by_id?.[heroID] ?? heroes.find((h) => h.hero_id === heroID)?.hero_name ?? "";
   const heroName = npc ? names.hero(npc) : `Герой #${heroID}`;
-  const lane = (d.by_lane ?? [])[0]?.key;
+  const lane = (d.by_lane ?? [])[0]?.key ?? "";
+  const team = d.recent?.[0]?.team ?? 2;
+  const lh10 = (d.averages ?? []).find((a) => a.key === "lh10");
+  const role = roleName(lane, team, lh10?.n ? lh10.avg : undefined);
+  const kda = (d.averages ?? []).find((a) => a.key === "kda");
 
   return (
     <div>
       <div className="hero-tabs">
         {heroes.slice(0, 8).map((h) => (
           <button key={h.hero_id} className={h.hero_id === heroID ? "on" : ""} onClick={() => onHero(h.hero_id)}>
-            <HeroBadge npc={h.hero_name} size={22} /> {names.hero(h.hero_name)} <small>{h.games}</small>
+            <HeroBadge npc={h.hero_name} size={26} /> {names.hero(h.hero_name)} <small>{h.games}</small>
           </button>
         ))}
         {heroes.length > 8 && (
@@ -56,43 +59,63 @@ export function HeroPage({ heroID, tick, onHero, onMatch }: {
         )}
       </div>
 
-      <div className="page-head">
-        <div className="hero-name" style={{ gap: 16 }}>
-          {npc && <HeroBadge npc={npc} size={60} />}
-          <div>
-            <h1>{heroName}</h1>
-            <div className="sub">
-              {d.games} {plural(d.games, "матч", "матча", "матчей")} · винрейт {pct(d.winrate)} ({d.wins}–{d.games - d.wins})
-              {lane && LANES[lane] && ` · ${LANES[lane].toLowerCase()}`}
-            </div>
-          </div>
+      <div className="card hero-hero">
+        <div className="watermark">{initials(heroName)}</div>
+        <div style={{ position: "relative" }}>
+          <div className="caps">{[role, `${d.games} ${plural(d.games, "матч", "матча", "матчей")}`].filter(Boolean).join(" · ")}</div>
+          <h1>{heroName}</h1>
+          <div className="dim">{heroSummary(d.habits ?? [])}</div>
         </div>
-        <label className="field">
-          <span>Сравнивать</span>
-          <select value={recentN} onChange={(e) => setRecentN(Number(e.target.value))}>
-            <option value={10}>Последние 10 vs всё время</option>
-            <option value={20}>Последние 20 vs всё время</option>
-          </select>
-        </label>
+        <div className="big-nums">
+          <div><b className={d.winrate >= 0.5 ? "accent" : "loss"}>{pct(d.winrate)}</b><div className="caps">Винрейт · {d.wins}–{d.games - d.wins}</div></div>
+          <div><b>{kda && kda.n ? kda.avg.toFixed(1) : "—"}</b><div className="caps">Средний KDA</div></div>
+        </div>
       </div>
 
-      {d.games === 0 ? <div className="card empty">На этом герое разобранных матчей нет.</div> : (
+      {d.games === 0 ? <div className="card empty" style={{ marginTop: 14 }}>На этом герое разобранных матчей нет.</div> : (
         <>
+          <div className="section-head">
+            <h2>Последние {recentN} против твоего среднего</h2>
+            <select value={recentN} onChange={(e) => setRecentN(Number(e.target.value))}>
+              <option value={10}>Последние 10 vs всё время</option>
+              <option value={20}>Последние 20 vs всё время</option>
+            </select>
+          </div>
           <CompareCards d={d} n={recentN} />
-          <div className="grid2">
-            <HabitsCard habits={d.habits ?? []} hero={heroName} />
+          <div className="grid2" style={{ marginTop: 14 }}>
+            <HabitsCard habits={d.habits ?? []} />
             <GpmCard d={d} />
           </div>
-          <div className="grid2">
-            <DayTimeCard hours={d.by_hour ?? []} />
+          <div className="grid2" style={{ marginTop: 14 }}>
+            <div className="card">
+              <div className="card-head"><h2>Винрейт по времени суток</h2></div>
+              <DayParts hours={d.by_hour ?? []} />
+            </div>
             <DeathZonesCard d={d} />
           </div>
           <ItemsCard d={d} />
-          <RecentTable d={d} onMatch={onMatch} />
         </>
       )}
     </div>
   );
+}
+
+/** "Фармишь лучше, чем раньше, но чаще умираешь." from the habit deltas. */
+function heroSummary(habits: Habit[]): string {
+  const better: Record<string, string> = {
+    gpm: "фармишь лучше", lh10: "лучше стоишь линию", kp: "чаще в драках", deaths: "реже умираешь", hero_dmg_pm: "больше урона по героям", kda: "KDA вырос",
+  };
+  const worse: Record<string, string> = {
+    gpm: "фармишь хуже", lh10: "проседаешь на линии", kp: "реже в драках", deaths: "чаще умираешь", hero_dmg_pm: "меньше урона по героям", kda: "KDA просел",
+    deaths10: "чаще умираешь на линии", wards: "меньше вардов",
+  };
+  if (!habits.length) return "Сыграй хотя бы 15 матчей — покажу, что меняется.";
+  const up = habits.filter((h) => h.change >= 0.1 && better[h.key]).sort((a, b) => b.change - a.change).slice(0, 2).map((h) => better[h.key]);
+  const down = habits.filter((h) => h.worse && worse[h.key]).slice(0, 2).map((h) => worse[h.key]);
+  if (!up.length && !down.length) return "Играешь стабильно: последние 10 матчей в пределах твоего среднего.";
+  if (up.length && down.length) return `${upperFirst(up.join(" и "))}, чем раньше, но ${down.join(" и ")}.`;
+  if (up.length) return `${upperFirst(up.join(" и "))}, чем раньше.`;
+  return `В последних матчах ${down.join(" и ")}.`;
 }
 
 function recentAvg(d: Dashboard, key: string, n: number): number | null {
@@ -102,20 +125,20 @@ function recentAvg(d: Dashboard, key: string, n: number): number | null {
 
 function CompareCards({ d, n }: { d: Dashboard; n: number }) {
   return (
-    <div className="stat-grid">
+    <div className="cmp-grid">
       {CARDS.map(({ key, label }) => {
         const m = METRICS[key];
         const all = (d.averages ?? []).find((a) => a.key === key);
         const r = recentAvg(d, key, n);
         if (!all || all.n === 0 || r == null) {
-          return <div className="stat" key={key}><div className="stat-label">{label}</div><div className="stat-value">—</div></div>;
+          return <div className="stat" key={key}><div className="label">{label}</div><div className="stat-value">—</div></div>;
         }
         const delta = r - all.avg;
         const better = LOWER_BETTER.has(key) ? delta < 0 : delta > 0;
         const same = Math.abs(delta) < Math.abs(all.avg) * 0.02;
         return (
-          <div className="stat" key={key}>
-            <div className="stat-label">{label}</div>
+          <div className="stat" key={key} style={!same && !better ? { borderColor: "rgba(242,112,95,.25)" } : undefined}>
+            <div className="label">{label}</div>
             <div className="stat-value">{m.fmt(r)}</div>
             <div className="stat-sub">
               ср. {m.fmt(all.avg)}{" "}
@@ -149,29 +172,30 @@ const HABIT_TEXT: Record<string, (r: string, b: string) => string> = {
   stacks: (r, b) => `Реже стакаешь: ${r} против ${b}.`,
 };
 
-function HabitsCard({ habits, hero }: { habits: Habit[]; hero: string }) {
+function HabitsCard({ habits }: { habits: Habit[] }) {
   const worse = habits.filter((h) => h.worse).slice(0, 3);
   const better = habits.filter((h) => h.change >= 0.1).slice(0, 3 - Math.min(3, worse.length));
   return (
     <div className="card">
-      <div className="card-head"><h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Icon name="trend" className="loss" /> Худшие привычки</h2></div>
-      <p className="lead">Где последние 10 матчей хуже твоего же среднего на {hero}</p>
+      <div className="card-head"><h2 className="loss">Худшие привычки</h2><span className="meta">последние 10 vs раньше</span></div>
       {habits.length === 0 && <div className="dim">Нужно хотя бы 15 матчей на герое.</div>}
-      {habits.length > 0 && worse.length === 0 && <div className="dim" style={{ marginTop: 10 }}>Последние 10 матчей не хуже среднего — так держать.</div>}
-      {worse.map((h) => <HabitItem key={h.key} h={h} />)}
-      {better.map((h) => <HabitItem key={h.key} h={h} />)}
+      {habits.length > 0 && worse.length === 0 && <div className="dim" style={{ marginBottom: 10 }}>Последние 10 матчей не хуже среднего — так держать.</div>}
+      {[...worse, ...better].map((h, i) => <HabitItem key={h.key} h={h} n={i + 1} />)}
     </div>
   );
 }
 
-function HabitItem({ h }: { h: Habit }) {
+function HabitItem({ h, n }: { h: Habit; n: number }) {
   const m = METRICS[h.key];
   const f = m ? m.fmt : (v: number) => v.toFixed(1);
   const text = h.worse ? (HABIT_TEXT[h.key] ?? ((r, b) => `${r} против ${b}.`))(f(h.recent), f(h.before)) : `Стало лучше: ${f(h.recent)} против ${f(h.before)}.`;
   return (
     <div className={`habit-card ${h.worse ? "" : "good"}`}>
-      <div className="hc-head"><span>{m?.label ?? h.key}</span><span className="mono">{f(h.recent)} vs {f(h.before)}</span></div>
-      <p>{text}</p>
+      <span className="no">{String(n).padStart(2, "0")}</span>
+      <div>
+        <div className="hc-head"><span>{m?.label ?? h.key}</span><span className="mono">{f(h.recent)} vs {f(h.before)}</span></div>
+        <p>{text}</p>
+      </div>
     </div>
   );
 }
@@ -182,75 +206,28 @@ function GpmCard({ d }: { d: Dashboard }) {
   const nums = vals.filter((v): v is number => v != null);
   if (nums.length === 0) return <div className="card"><h2>GPM</h2><div className="dim">Нет данных.</div></div>;
   const max = Math.max(...nums), min = Math.min(...nums);
-  const floor = Math.max(0, min - (max - min) * 0.6);
+  const floor = max === min ? min * 0.5 : Math.max(0, min - (max - min) * 0.6);
+  const h = (v: number) => ((v - floor) / Math.max(1, max - floor)) * 100;
   const last10 = vals.slice(-10).filter((v): v is number => v != null);
+  const avg10 = last10.reduce((a, b) => a + b, 0) / Math.max(1, last10.length);
+  const avgAll = nums.reduce((a, b) => a + b, 0) / nums.length;
   return (
     <div className="card">
       <div className="card-head">
-        <h2>GPM, последние {games.length} {plural(games.length, "матч", "матча", "матчей")}</h2>
-        <span className="mini-legend">{games.length > 10 && <span><i style={{ background: "#3a404c" }} />{games.length}–11</span>}<span><i style={{ background: "var(--accent)" }} />последние 10</span></span>
+        <h2>GPM, {games.length} {plural(games.length, "матч", "матча", "матчей")}</h2>
+        <span><b className="display accent" style={{ fontSize: 22 }}>{Math.round(avg10)}</b> <span className="faint small">ср. последних 10</span></span>
       </div>
       <div className="vbars">
+        <div className="avg-line" style={{ bottom: `${h(avgAll)}%` }} />
         {vals.map((v, i) => (
           <div key={i} title={v == null ? "—" : String(Math.round(v))}
-            style={{ height: `${v == null ? 0 : ((v - floor) / (max - floor)) * 100}%`, background: i >= vals.length - 10 ? "var(--accent)" : "#3a404c" }} />
+            style={{ height: `${v == null ? 0 : h(v)}%`, background: i >= vals.length - 10 ? "var(--accent)" : "#2c313c" }} />
         ))}
       </div>
-      <div className="chart-foot" style={{ marginTop: 8 }}><span>{games.length} игр назад</span><span>Последний матч</span></div>
-      <div className="chart-stats">
-        <span>Мин: <b>{Math.round(min)}</b></span>
-        <span>Макс: <b>{Math.round(max)}</b></span>
-        <span>Ср. последних 10: <b>{Math.round(last10.reduce((a, b) => a + b, 0) / Math.max(1, last10.length))}</b></span>
-      </div>
+      <div className="chart-foot"><span>{games.length} игр назад</span><span>пунктир — {Math.round(avgAll)}, твоё среднее</span><span>сейчас</span></div>
     </div>
   );
 }
-
-const DAY_PARTS = [
-  { label: "Утро, 6–12", from: 6, to: 12, night: "Утром" },
-  { label: "День, 12–18", from: 12, to: 18, night: "Днём" },
-  { label: "Вечер, 18–24", from: 18, to: 24, night: "Вечером" },
-  { label: "Ночь, 0–6", from: 0, to: 6, night: "Ночью" },
-];
-
-function DayTimeCard({ hours }: { hours: Bucket[] }) {
-  const parts = DAY_PARTS.map((p) => {
-    const bs = hours.filter((b) => Number(b.key) >= p.from && Number(b.key) < p.to);
-    const games = bs.reduce((a, b) => a + b.games, 0);
-    const wins = bs.reduce((a, b) => a + b.wins, 0);
-    return { ...p, games, wins, wr: games ? wins / games : 0 };
-  });
-  // Loss-rate comparison of the worst part (≥3 games) against everything else.
-  const played = parts.filter((p) => p.games >= 3);
-  const worst = played.length > 1 ? played.reduce((a, b) => (b.wr < a.wr ? b : a)) : null;
-  let note = "";
-  if (worst) {
-    const rest = parts.filter((p) => p !== worst);
-    const rg = rest.reduce((a, p) => a + p.games, 0), rw = rest.reduce((a, p) => a + p.wins, 0);
-    const lossW = 1 - worst.wr, lossR = rg ? 1 - rw / rg : 0;
-    if (lossR > 0 && lossW / lossR >= 1.3) {
-      const k = lossW / lossR;
-      note = `${worst.night} ты проигрываешь в ${k >= 1.95 ? `${Math.round(k)} раза` : `${k.toFixed(1).replace(".", ",")} раза`} чаще.${worst.from === 0 ? " Иди спать." : ""}`;
-    }
-  }
-  return (
-    <div className="card">
-      <div className="card-head"><h2 style={{ fontSize: 18 }}>Винрейт по времени суток</h2></div>
-      {parts.map((p) => (
-        <div className="meter-row" key={p.label}>
-          <div className="meter-label">
-            <span style={{ fontSize: 15 }}>{p.label}</span>
-            <span className="mono">{p.games} {plural(p.games, "игра", "игры", "игр")}<b>{p.games ? pct(p.wr) : "—"}</b></span>
-          </div>
-          <div className={`bar ${p.games && p.wr < 0.45 ? "bad" : ""}`}><div style={{ width: `${p.wr * 100}%` }} /></div>
-        </div>
-      ))}
-      {note && <div className="big-note" style={{ fontSize: 15 }}>{note}</div>}
-    </div>
-  );
-}
-
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 function DeathZonesCard({ d }: { d: Dashboard }) {
   const deaths = d.deaths ?? [];
@@ -261,16 +238,16 @@ function DeathZonesCard({ d }: { d: Dashboard }) {
   }, [deaths]);
   return (
     <div className="card">
-      <div className="card-head"><h2>Где ты умираешь</h2><span className="meta">{deaths.length} {plural(deaths.length, "смерть", "смерти", "смертей")}, все матчи</span></div>
+      <div className="card-head"><h2>Где ты умираешь</h2><span className="meta">{deaths.length} {plural(deaths.length, "смерть", "смерти", "смертей")}</span></div>
       {deaths.length === 0 ? <div className="dim">Смертей с позицией нет.</div> : (
-        <>
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <MapCanvas world={d.world} size={300} points={[]} heat={deaths.map((p) => [p.x, p.y])} />
+        <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
+          <MapCanvas world={d.world} size={230} points={[]} heat={deaths.map((p) => [p.x, p.y])} />
+          <div className="zones">
+            {top.map(([k, n], i) => (
+              <div key={k}><b className={i === 0 ? "top" : ""}>{Math.round((n / deaths.length) * 100)}%</b><small>{regionName(k)}</small></div>
+            ))}
           </div>
-          <div className="big-note" style={{ fontSize: 14 }}>
-            Топ-зоны: {top.map(([k, n], i) => `${i ? lowerFirst(regionName(k)) : regionName(k)} — ${Math.round((n / deaths.length) * 100)}%`).join(", ")}
-          </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -281,17 +258,17 @@ function ItemsCard({ d }: { d: Dashboard }) {
   const heroGames = d.games;
   const items = (d.hero?.items ?? [])
     .filter((it) => !CONSUMABLE.test(it.item) && (names.raw.items?.[it.item]?.cost ?? 0) >= 1800 && it.n >= Math.max(2, heroGames * 0.15))
-    .slice(0, 8);
+    .slice(0, 4);
   return (
-    <div className="card">
-      <div className="card-head"><h2 style={{ fontSize: 18 }}>Средние тайминги ключевых предметов</h2><span className="meta">первая покупка</span></div>
+    <div className="card" style={{ marginTop: 14 }}>
+      <div className="card-head"><h2>Средние тайминги ключевых предметов</h2><span className="meta">первая покупка</span></div>
       {items.length === 0 ? <div className="dim">Мало данных.</div> : (
         <div className="item-grid">
           {items.map((it) => (
             <div className="tile" key={it.item}>
               <b>{names.inflictor("item_" + it.item)}</b>
-              <div className="stat-value">{clock(it.avg)}</div>
-              <div className="stat-sub">лучший {clock(it.min)} · собран в {it.n} из {heroGames} игр</div>
+              <div className="val">{clock(it.avg)}</div>
+              <small>лучший <span className="accent">{clock(it.min)}</span> · собран в {it.n} из {heroGames}</small>
             </div>
           ))}
         </div>
