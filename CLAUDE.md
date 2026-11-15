@@ -31,7 +31,9 @@ cmd/dump/          spike CLI: .dem -> JSON dump of raw data (match, players, com
 internal/parser/   manta -> domain structs. NO imports of store/UI/Wails.
 internal/store/    SQLite, embedded migrations
 internal/stats/    aggregates over stored matches
-internal/...       other services (scanner, opendota, constants, updater glue)
+internal/library/  folder scan, import, background parse worker pool
+internal/settings/ settings model and defaults
+internal/constants/ OpenDota constants cache
 app.go / main.go   Wails services & bindings
 frontend/          React app
 testdata/          local replays (gitignored); tests skip when absent
@@ -50,5 +52,7 @@ testdata/          local replays (gitignored); tests skip when absent
 go test ./...                         # unit tests (replay tests skip without testdata)
 go run ./cmd/dump testdata/X.dem > out.json
 wails3 dev                            # dev mode with hot reload
-wails3 build                          # production build for current OS
+wails3 build                          # production build for current OS (VERSION=x.y.z to stamp it)
+wails3 build GOOS=windows             # cross-compile Windows from Linux (no CGO)
+wails3 task build:server              # GUI-less HTTP build, for driving the UI with Playwright
 ```

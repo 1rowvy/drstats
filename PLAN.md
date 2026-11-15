@@ -14,6 +14,14 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | Heatmaps / map | raw `<canvas>` | spec |
 | Hero/item/ability names | OpenDota constants (`odota/dotaconstants` JSON), cached in SQLite/app data dir, refresh button | spec |
 | Auto-update | Wails v3 updater, GitHub Releases provider; CI builds on tag `v*` | One user, two machines — new build lands on both automatically. Repo is **public** so the updater needs no token. |
+| UI language | Russian | Single Russian-speaking user; code, comments and docs stay English. |
+| Charts wrapper | own ~30-line wrapper over tree-shaken `echarts/core` | `echarts-for-react` failed to bundle with Vite 8/Rolldown (missing `tslib`); one dependency less. |
+| Hero icons | initials on attribute colour, no images | Steam CDN images would be an extra network dependency. |
+| Replay storage | replays are registered in place (path in DB), not copied | Parsed data lives in SQLite; the file is only needed for re-parsing. |
+| Series step | 5 game seconds (`parser.SeriesStep`) | ~4k rows per match, enough for charts and death/lane positions. |
+| Lane opponent | enemy with the smallest mean distance to me over 1:00–10:00 | Checked against OpenDota lanes on the test replay. Refine with roles in phase 3. |
+| Release build | one ubuntu-24.04 job: native linux build + `GOOS=windows` cross-compile (no CGO on Windows) | Simpler and faster than a Windows runner. |
+| Dev/test driving | `wails3 task build:server` + Playwright against the HTTP server | GUI can be checked headlessly without a display. |
 | Replay download | OpenDota `/matches/{id}` → `cluster` + `replay_salt` → `replay{cluster}.valve.net/570/{id}_{salt}.dem.bz2`. **The file is currently zstd despite the `.bz2` name** — detect by magic bytes, support both. 404 → "Valve already deleted this replay". | found during spike |
 
 ## Phases
@@ -31,18 +39,18 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] report: `docs/spike.md`
 
 ### Phase 2 — MVP
-- [ ] Wails v3 app skeleton (React+TS+Vite), dark theme
-- [ ] `internal/store`: SQLite, migrations, matches/players/series/events tables, `parser_version`, status (`pending/parsing/done/failed` + error)
-- [ ] Settings: Steam ID (account id or steam64), replay folder (OS defaults), parallelism (default 2), heuristic thresholds, map background file
-- [ ] Replay sources: folder scan on start + button, manual import (dialog + drag-n-drop)
-- [ ] Background parsing worker pool, progress via Wails events, failed matches keep error text
-- [ ] Domain extraction v1: match meta, players, my player detection, per-N-second time series (gold, xp, net worth, LH/DN, position), deaths, kills
-- [ ] Match list: hero, result, KDA, duration, date, mode, parse status
-- [ ] Match page tabs: Overview, Farm (NW/GPM/XPM charts: me / team avg / lane opponent), Deaths (list + points on map)
-- [ ] Map: world coords from cell+vec, schematic map (lanes, river) or user background
-- [ ] Constants (hero/item/ability names) from OpenDota, cached
-- [ ] Auto-update: updater wired to GitHub Releases + release workflow (win/linux)
-- [ ] README: build on Windows & Fedora, dev mode
+- [x] Wails v3 app skeleton (React+TS+Vite), dark theme
+- [x] `internal/store`: SQLite, migrations, matches/players/series/events tables, `parser_version`, status (`pending/parsing/done/failed` + error)
+- [x] Settings: Steam ID (account id or steam64), replay folder (OS defaults), parallelism (default 2), heuristic thresholds, map background file
+- [x] Replay sources: folder scan on start + button, manual import (dialog + drag-n-drop)
+- [x] Background parsing worker pool, progress via Wails events, failed matches keep error text
+- [x] Domain extraction v1: match meta, players, my player detection, per-N-second time series (gold, xp, net worth, LH/DN, position), deaths, kills
+- [x] Match list: hero, result, KDA, duration, date, mode, parse status
+- [x] Match page tabs: Overview, Farm (NW/GPM/XPM charts: me / team avg / lane opponent), Deaths (list + points on map)
+- [x] Map: world coords from cell+vec, schematic map (lanes, river) or user background
+- [x] Constants (hero/item/ability names) from OpenDota, cached
+- [x] Auto-update: updater wired to GitHub Releases + release workflow (win/linux)
+- [x] README: build on Windows & Fedora, dev mode
 
 ### Phase 3 — everything else
 - [ ] Laning: LH/DN @5/@10, NW/XP diff vs lane opponent (detected by early positions), lane deaths
