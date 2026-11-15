@@ -427,7 +427,7 @@ function DeathsTab({ view }: { view: MatchView }) {
           <MapCanvas size={480} points={points} world={view.world}
             heat={layer === "move" ? view.vision.heat ?? [] : undefined}
             onHover={(pi) => setHover(pi === null ? null : pointToDeath[pi])} />
-          {hasBg === false && <div className="map-foot">Схема без игровой миникарты. Свою подложку можно указать в настройках.</div>}
+          {hasBg === false && <div className="map-foot">Не удалось загрузить миникарту — показана схема.</div>}
         </div>
         <div className="death-list">
           {deaths.length === 0 && <div className="card empty">Ни одной смерти. Красиво.</div>}

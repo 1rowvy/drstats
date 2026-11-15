@@ -101,11 +101,11 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
         <label>
           <span>Фон карты</span>
           <div className="row">
-            <input value={s.map_image} onChange={(e) => set("map_image", e.target.value)} placeholder="схематичная карта" />
+            <input value={s.map_image} onChange={(e) => set("map_image", e.target.value)} placeholder="игровая миникарта (7.41)" />
             <button onClick={pickMap}>Выбрать…</button>
             <button onClick={() => set("map_image", "")}>Сбросить</button>
           </div>
-          <small>Квадратная картинка миникарты (png/jpg), должна покрывать весь мир карты.</small>
+          <small>Необязательно: своя квадратная картинка (png/jpg), покрывающая весь мир карты. Пусто — встроенная миникарта.</small>
         </label>
 
         <h2>Эвристики</h2>

@@ -9,30 +9,59 @@ export interface MapPoint {
   highlight?: boolean;
 }
 
-let mapImageCache: Promise<HTMLImageElement | null> | null = null;
+/** A map background and the world square [min, max] its full image covers. */
+interface MapBg {
+  img: HTMLImageElement;
+  bounds: [number, number];
+  /** The bundled game minimap (false: user-supplied picture). */
+  builtin: boolean;
+}
 
-/** Loads the user's map background once per session (null if none). */
-function loadMapImage(): Promise<HTMLImageElement | null> {
+/**
+ * Bundled 7.41 game minimap (1024x1024, Valve asset). World bounds were
+ * calibrated against fountains, ancients, towers and Roshan positions from a
+ * 7.41 replay; the picture includes a dark frame outside the playable area.
+ */
+const BUILTIN_MAP = "/minimap-7.41.jpg";
+const BUILTIN_BOUNDS: [number, number] = [-10400, 10300];
+
+let mapImageCache: Promise<MapBg | null> | null = null;
+
+function loadImg(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+/**
+ * Loads the map background once per session: the user's picture if one is
+ * configured (assumed to cover exactly the world bounds), otherwise the
+ * bundled minimap; null only if both fail (schematic map is drawn then).
+ */
+function loadMapImage(): Promise<MapBg | null> {
   if (!mapImageCache) {
-    mapImageCache = Api.MapImage().then(
-      (url) =>
-        new Promise((resolve) => {
-          if (!url) return resolve(null);
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
-          img.src = url;
-        }),
-    );
+    mapImageCache = Api.MapImage()
+      .catch(() => "")
+      .then(async (url) => {
+        if (url) {
+          const img = await loadImg(url);
+          if (img) return { img, bounds: [NaN, NaN] as [number, number], builtin: false };
+        }
+        const img = await loadImg(BUILTIN_MAP);
+        return img ? { img, bounds: BUILTIN_BOUNDS, builtin: true } : null;
+      });
   }
   return mapImageCache;
 }
 
-/** Whether the user configured a map background (null while loading). */
+/** Whether a map background (bundled or user) is available (null while loading). */
 export function useHasMapImage(): boolean | null {
   const [has, setHas] = useState<boolean | null>(null);
   useEffect(() => {
-    loadMapImage().then((img) => setHas(!!img));
+    loadMapImage().then((bg) => setHas(!!bg));
   }, []);
   return has;
 }
@@ -45,7 +74,8 @@ export function resetMapImage() {
 /**
  * Dota map with points. World coordinates are mapped linearly from
  * [world[0], world[1]] on both axes; y grows upwards (Radiant bottom-left).
- * Without a user background a schematic map (lanes, river, bases) is drawn.
+ * The game minimap is drawn underneath; if it cannot be loaded, a schematic
+ * map (lanes, river, bases) is drawn instead.
  */
 export function MapCanvas({ points, world, size = 520, onHover, heat, segments }: {
   points: MapPoint[]; world: number[]; size?: number; onHover?: (index: number | null) => void;
@@ -55,7 +85,7 @@ export function MapCanvas({ points, world, size = 520, onHover, heat, segments }
   segments?: { from: number[]; to: number[]; color: string }[];
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const [bg, setBg] = useState<HTMLImageElement | null>(null);
+  const [bg, setBg] = useState<MapBg | null>(null);
   const [min, max] = world.length === 2 ? world : [-8288, 8288];
   const toPx = (x: number, y: number): [number, number] => [
     ((x - min) / (max - min)) * size,
@@ -75,9 +105,7 @@ export function MapCanvas({ points, world, size = 520, onHover, heat, segments }
     const ctx = c.getContext("2d")!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (bg) {
-      ctx.drawImage(bg, 0, 0, size, size);
-      ctx.fillStyle = "rgba(0,0,0,0.25)";
-      ctx.fillRect(0, 0, size, size);
+      drawBackground(ctx, bg, size, min, max);
     } else {
       drawSchematic(ctx, size, toPx);
     }
@@ -117,6 +145,24 @@ export function MapCanvas({ points, world, size = 520, onHover, heat, segments }
       onMouseLeave={() => onHover?.(null)}
     />
   );
+}
+
+/** Draws the part of the background image that covers world [min, max]. */
+function drawBackground(ctx: CanvasRenderingContext2D, bg: MapBg, size: number, min: number, max: number) {
+  const { img } = bg;
+  const [bmin, bmax] = bg.builtin ? bg.bounds : [min, max];
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const sx = ((min - bmin) / (bmax - bmin)) * w;
+  const sw = ((max - min) / (bmax - bmin)) * w;
+  // Image rows grow downwards while world y grows upwards.
+  const sy = ((bmax - max) / (bmax - bmin)) * h;
+  const sh = ((max - min) / (bmax - bmin)) * h;
+  ctx.fillStyle = "#12151b";
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
+  // Dim it so markers and the heatmap stay readable.
+  ctx.fillStyle = bg.builtin ? "rgba(12,14,18,0.38)" : "rgba(0,0,0,0.25)";
+  ctx.fillRect(0, 0, size, size);
 }
 
 function drawPoint(ctx: CanvasRenderingContext2D, [x, y]: [number, number], color: string, r: number, ring = false, label?: string) {
