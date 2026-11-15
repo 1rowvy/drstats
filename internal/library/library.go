@@ -5,6 +5,7 @@ package library
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -22,7 +23,14 @@ import (
 const (
 	EventReplay   = "library:replay"   // payload: ReplayEvent
 	EventProgress = "library:progress" // payload: Progress
+	EventParsing  = "library:parsing"  // payload: ParseProgress
 )
+
+// ParseProgress is how far a running parse has read its replay file.
+type ParseProgress struct {
+	ReplayID int64   `json:"replay_id"`
+	Fraction float64 `json:"fraction"` // 0..1
+}
 
 // ReplayEvent reports a status change of one replay.
 type ReplayEvent struct {
@@ -41,8 +49,43 @@ type Progress struct {
 	Stale   int `json:"stale"` // parsed by an older parser version
 }
 
-// ParseFunc parses one replay file; replaceable in tests.
-type ParseFunc func(path string) (*parser.Match, error)
+// ParseFunc parses one replay file, reporting the read fraction (0..1) to
+// progress; replaceable in tests.
+type ParseFunc func(path string, progress func(float64)) (*parser.Match, error)
+
+// parseFile parses a replay, measuring progress by bytes read from the file.
+func parseFile(path string, progress func(float64)) (*parser.Match, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	return parser.Parse(&countingReader{r: f, total: st.Size(), progress: progress})
+}
+
+// countingReader reports read progress in steps of at least 2%.
+type countingReader struct {
+	r        io.Reader
+	n, total int64
+	last     float64
+	progress func(float64)
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	if c.total > 0 && c.progress != nil {
+		if f := float64(c.n) / float64(c.total); f-c.last >= 0.02 {
+			c.last = f
+			c.progress(min(f, 1))
+		}
+	}
+	return n, err
+}
 
 // Library owns the parse queue.
 type Library struct {
@@ -65,7 +108,7 @@ func New(st *store.Store, emit func(string, any)) *Library {
 	if emit == nil {
 		emit = func(string, any) {}
 	}
-	l := &Library{st: st, emit: emit, parse: parser.ParseFile, queued: map[int64]bool{}, limit: 1}
+	l := &Library{st: st, emit: emit, parse: parseFile, queued: map[int64]bool{}, limit: 1}
 	l.cond = sync.NewCond(&l.mu)
 	return l
 }
@@ -175,7 +218,9 @@ func (l *Library) work(id int64) {
 	l.emitProgress()
 
 	started := time.Now()
-	m, err := l.parse(r.Path)
+	m, err := l.parse(r.Path, func(f float64) {
+		l.emit(EventParsing, ParseProgress{ReplayID: id, Fraction: f})
+	})
 	if err != nil {
 		var pe *parser.ParseError
 		if errors.As(err, &pe) && pe.Panic {

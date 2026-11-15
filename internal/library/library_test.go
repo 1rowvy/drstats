@@ -34,7 +34,7 @@ func TestImportAndParse(t *testing.T) {
 			events[ev.Status]++
 		}
 	})
-	l.parse = func(path string) (*parser.Match, error) {
+	l.parse = func(path string, _ func(float64)) (*parser.Match, error) {
 		if strings.HasSuffix(path, "bad.dem") {
 			panic("manta exploded") // must be contained
 		}

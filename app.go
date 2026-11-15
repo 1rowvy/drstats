@@ -34,6 +34,7 @@ const (
 func init() {
 	application.RegisterEvent[library.ReplayEvent](library.EventReplay)
 	application.RegisterEvent[library.Progress](library.EventProgress)
+	application.RegisterEvent[library.ParseProgress](library.EventParsing)
 	application.RegisterEvent[ImportResult](EventImported)
 	application.RegisterEvent[application.Void](EventConstants)
 	application.RegisterEvent[download.Progress](EventDownload)
