@@ -59,8 +59,8 @@ type MatchView struct {
 	// victim's team had an observer ward covering the spot.
 	DeathCtx []DeathCtx `json:"death_ctx"`
 	// ODStatus is the OpenDota fetch state: "" (not yet), ok, unparsed, notfound, error.
-	ODStatus string `json:"od_status"`
-	World    [2]float64     `json:"world"` // map coordinate bounds [min, max]
+	ODStatus string     `json:"od_status"`
+	World    [2]float64 `json:"world"` // map coordinate bounds [min, max]
 
 	// Analyses of the focused player (zero values when Focus < 0).
 	Laning    Laning       `json:"laning"`

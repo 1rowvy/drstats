@@ -266,7 +266,7 @@ type MatchRow struct {
 	LastHits int    `json:"last_hits"`
 	Denies   int    `json:"denies"`
 	GPM      int    `json:"gpm"`
-	LH10     *int   `json:"lh10"` // last hits at 10:00, nil without a sample
+	LH10     *int   `json:"lh10"`     // last hits at 10:00, nil without a sample
 	Position int    `json:"position"` // OpenDota estimated position 1..5, 0 if unknown
 	// Lane is the detected laning-stage lane; filled by the caller from LaneEarly.
 	Lane      string          `json:"lane"`
