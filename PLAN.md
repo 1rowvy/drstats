@@ -108,6 +108,6 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Match: Разбор (flow, moments, verdict), Фарм, Драки, Смерти; Hero page; Dashboard
 
 ### Dashboard over full OpenDota history
-- [ ] OpenDota player history client + `od_history` table + background sync
-- [ ] Dashboard source «Все игры / Только реплеи», merged aggregates
-- [ ] Dashboard UI: source switch, sync status, OpenDota-only matches
+- [x] OpenDota player history client + `od_history` table + background sync
+- [x] Dashboard source «Все игры / Только реплеи», merged aggregates
+- [x] Dashboard UI: source switch, sync status, OpenDota-only matches
