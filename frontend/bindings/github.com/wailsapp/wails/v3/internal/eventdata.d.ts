@@ -27,6 +27,7 @@ declare module "@wailsio/runtime" {
             "library:parsing": library$0.ParseProgress;
             "library:progress": library$0.Progress;
             "library:replay": library$0.ReplayEvent;
+            "opendota:history": enrich$0.HistoryUpdated;
             "opendota:updated": enrich$0.Updated;
         }
     }

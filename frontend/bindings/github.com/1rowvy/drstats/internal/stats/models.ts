@@ -202,6 +202,17 @@ export interface Dashboard {
      */
     "unknown": boolean;
     "extras": Extras;
+
+    /**
+     * Replays is how many of the filtered matches have a parsed replay
+     * (replay-only blocks are computed over those).
+     */
+    "replays": number;
+
+    /**
+     * History is the OpenDota history sync state (nil without a Steam ID).
+     */
+    "history": store$0.HistorySync | null;
 }
 
 /**
@@ -389,6 +400,11 @@ export interface Filter {
      * detected lane
      */
     "lane": string;
+
+    /**
+     * SourceReplays / SourceAll
+     */
+    "source": string;
 }
 
 /**
@@ -442,6 +458,11 @@ export interface Game {
     "deaths10": number;
     "win": boolean;
     "lane": string;
+
+    /**
+     * OpenDota marks a match known only from the OpenDota history (no replay).
+     */
+    "opendota": boolean;
 }
 
 /**
@@ -886,6 +907,11 @@ export interface Record {
     "hero_name": string;
     "end_time": number;
     "win": boolean;
+
+    /**
+     * no replay
+     */
+    "opendota": boolean;
 }
 
 /**
@@ -934,6 +960,11 @@ export interface TrendGame {
     "end_time": number;
     "win": boolean;
     "hero_name": string;
+
+    /**
+     * no replay
+     */
+    "opendota": boolean;
     "values": { [_ in string]?: number | null } | null;
 }
 

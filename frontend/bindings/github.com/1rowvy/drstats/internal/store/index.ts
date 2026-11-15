@@ -4,6 +4,7 @@
 export type {
     AbilityTotal,
     DeathPoint,
+    HistorySync,
     ItemTiming,
     MatchMeta,
     MatchRow

@@ -20,7 +20,7 @@ export function HeroPage({ heroID, tick, onHero, onMatch }: {
   heroID: number; tick: number; onHero: (id: number) => void; onMatch: (id: number) => void;
 }) {
   const names = useNames();
-  const filter: Filter = { hero_id: heroID, days: 0, last: 0, result: "", mode: 0, lane: "" };
+  const filter: Filter = { hero_id: heroID, days: 0, last: 0, result: "", mode: 0, lane: "", source: "" };
   const { d, error } = useDashboard(filter, tick);
   const [recentN, setRecentN] = useState(10);
 

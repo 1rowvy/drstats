@@ -126,6 +126,7 @@ code { background: var(--panel-3); padding: 1px 5px; border-radius: 4px; font-fa
 .chip.on { background: var(--text); border-color: var(--text); color: #0b0c10; font-weight: 600; }
 .chip.on:hover:not(:disabled) { background: #fff; border-color: #fff; }
 .seg { display: inline-flex; gap: 4px; }
+.source-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; font-size: 12px; }
 .seg button { border-radius: 999px; background: none; border: 1px solid var(--line-2); color: var(--dim); padding: 5px 13px; font-size: 12px; }
 .seg button:hover:not(:disabled) { color: var(--text); }
 .seg button.on { background: var(--text); border-color: var(--text); color: #0b0c10; font-weight: 600; }

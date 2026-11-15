@@ -83,6 +83,7 @@ function Shell() {
       }),
       Events.On(AppEvents.LibraryProgress, (e) => setProgress(e.data)),
       Events.On(AppEvents.OpendotaUpdated, reloadSoon),
+      Events.On(AppEvents.OpendotaHistory, reloadSoon),
       Events.On(AppEvents.LibraryImported, (e) => {
         const r = e.data;
         if (r.error) showToast(r.error, true);

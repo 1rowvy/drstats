@@ -182,3 +182,11 @@ export function SaveSettings(s: settings$0.Settings): $CancellablePromise<settin
 export function ScanReplayDir(): $CancellablePromise<$models.ImportResult> {
     return $Call.ByID(4063972574);
 }
+
+/**
+ * SyncHistory fetches the new matches of the OpenDota history now (the
+ * dashboard's «Все игры» source). It returns when the sync is done.
+ */
+export function SyncHistory(): $CancellablePromise<void> {
+    return $Call.ByID(2092136290);
+}

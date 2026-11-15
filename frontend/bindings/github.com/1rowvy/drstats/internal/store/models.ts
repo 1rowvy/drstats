@@ -27,6 +27,32 @@ export interface DeathPoint {
 }
 
 /**
+ * HistorySync is the state of the OpenDota history of one account.
+ */
+export interface HistorySync {
+    /**
+     * last attempt, unix; 0 = never
+     */
+    "synced_at": number;
+
+    /**
+     * last successful sync, unix
+     */
+    "ok_at": number;
+
+    /**
+     * "" (never), ok, error
+     */
+    "status": string;
+    "error": string;
+
+    /**
+     * stored matches
+     */
+    "count": number;
+}
+
+/**
  * ItemTiming is the average first-purchase time of an item over matches.
  */
 export interface ItemTiming {

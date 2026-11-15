@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
+import { Browser } from "@wailsio/runtime";
 import { Api, Bucket, Dashboard, Filter } from "../api";
 import { clock, duration, pct, plural, relDate, WEEKDAYS } from "../format";
 import { useNames } from "../names";
 import { HeroBadge } from "../components/HeroBadge";
 
 const ACTIVITY_WEEKS = 12;
+const SOURCE_KEY = "dashboard.source";
+
+/** Matches known only from the OpenDota history have no match page: open them on OpenDota. */
+function openMatch(id: number, opendota: boolean | undefined, onMatch: (id: number) => void) {
+  if (opendota) Browser.OpenURL(`https://www.opendota.com/matches/${id}`).catch(console.error);
+  else onMatch(id);
+}
+
+function loadSource(): string {
+  try { return localStorage.getItem(SOURCE_KEY) ?? "all"; } catch { return "all"; }
+}
 
 /** Loads the dashboard for a filter; reloads when matches change (tick). */
 export function useDashboard(filter: Filter, tick: number) {
@@ -22,7 +34,12 @@ export function DashboardPage({ tick, onMatch, onHero }: {
   tick: number; onMatch: (id: number) => void; onHero: (heroID: number) => void;
 }) {
   const [days, setDays] = useState(ACTIVITY_WEEKS * 7);
-  const { d, error } = useDashboard({ hero_id: 0, days, last: 0, result: "", mode: 0, lane: "" }, tick);
+  const [source, setSourceState] = useState(loadSource);
+  const setSource = (v: string) => {
+    setSourceState(v);
+    try { localStorage.setItem(SOURCE_KEY, v); } catch { /* per-viewer convenience only */ }
+  };
+  const { d, error } = useDashboard({ hero_id: 0, days, last: 0, result: "", mode: 0, lane: "", source }, tick);
   // Nothing in the last 12 weeks but older matches exist: show all time.
   useEffect(() => {
     if (d && days && d.games === 0 && d.total > 0) setDays(0);
@@ -30,8 +47,43 @@ export function DashboardPage({ tick, onMatch, onHero }: {
   if (error) return <div className="notice bad">{error}</div>;
   if (!d) return <div className="dim">Загрузка…</div>;
   if (d.unknown) return <div className="notice">Укажи свой Steam ID на странице «Импорт» — дашборд строится по твоим матчам.</div>;
-  if (d.total === 0) return <div className="card empty">Разобранных матчей с твоим участием пока нет.</div>;
-  return <Body d={d} days={days} setDays={setDays} onMatch={onMatch} onHero={onHero} />;
+  const bar = <SourceBar d={d} source={source} setSource={setSource} />;
+  if (d.total === 0) return <>{bar}<div className="card empty">{source === "all" ? "Матчей с твоим участием пока нет — ни реплеев, ни истории OpenDota." : "Разобранных матчей с твоим участием пока нет."}</div></>;
+  return <>{bar}<Body d={d} days={days} setDays={setDays} onMatch={onMatch} onHero={onHero} /></>;
+}
+
+/** Source switch (all games via OpenDota / replays only) and the history sync state. */
+function SourceBar({ d, source, setSource }: { d: Dashboard; source: string; setSource: (v: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const h = d.history;
+  const sync = () => {
+    setBusy(true);
+    setErr("");
+    Api.SyncHistory().catch((e) => setErr(String(e?.message ?? e))).finally(() => setBusy(false));
+  };
+  let status = "";
+  let bad = false;
+  if (busy) status = h?.count ? "Обновляю историю OpenDota…" : "Загружаю историю с OpenDota, это может занять минуту…";
+  else if (!h || !h.status) status = "История OpenDota ещё не загружена.";
+  else if (h.status === "error") { status = `OpenDota: ${h.error}`; bad = true; }
+  else if (h.count === 0) {
+    status = "OpenDota не вернула ни одной игры. Включи в настройках Dota «Открыть доступ к данным матчей» (Expose Public Match Data) и обнови через пару минут.";
+    bad = true;
+  } else status = `OpenDota: ${h.count} ${plural(h.count, "игра", "игры", "игр")} · обновлено ${relDate(h.ok_at)}`;
+  return (
+    <div className="source-bar">
+      <div className="seg">
+        <button className={source === "all" ? "on" : ""} onClick={() => setSource("all")}>Все игры</button>
+        <button className={source === "" ? "on" : ""} onClick={() => setSource("")}>Только реплеи</button>
+      </div>
+      {source === "all" && <>
+        <span className={bad ? "loss" : "dim"}>{status}</span>
+        <button className="link" disabled={busy} onClick={sync}>{busy ? "обновляю…" : "обновить"}</button>
+      </>}
+      {err && <span className="loss">{err}</span>}
+    </div>
+  );
 }
 
 function Body({ d, days, setDays, onMatch, onHero }: {
@@ -53,6 +105,11 @@ function Body({ d, days, setDays, onMatch, onHero }: {
             </button>
           </div>
           <h1>Твоя дота в цифрах</h1>
+          {d.filter.source === "all" && d.replays < d.games && (
+            <div className="dim" style={{ marginTop: -6, marginBottom: 6 }}>
+              {d.replays} из {d.games} — с разобранным реплеем; самый быстрый предмет считается только по ним
+            </div>
+          )}
           <div className="big-row">
             <div><b>{d.games}</b><div className="caps">{plural(d.games, "матч", "матча", "матчей")}</div></div>
             <div><b className={d.winrate >= 0.5 ? "accent" : "loss"}>{pct(d.winrate)}</b><div className="caps">побед</div></div>
@@ -64,7 +121,8 @@ function Body({ d, days, setDays, onMatch, onHero }: {
               <div className="caps">Форма, последние {form.length} · слева старые</div>
               <div className="form-row">
                 {form.map((g) => (
-                  <span key={g.match_id} className={g.win ? "w" : "l"} title={`${names.hero(g.hero_name)} · ${relDate(g.end_time)}`} onClick={() => onMatch(g.match_id)}>
+                  <span key={g.match_id} className={g.win ? "w" : "l"} title={`${names.hero(g.hero_name)} · ${relDate(g.end_time)}${g.opendota ? " · без реплея, откроется OpenDota" : ""}`}
+                    onClick={() => openMatch(g.match_id, g.opendota, onMatch)}>
                     {g.win ? "В" : "П"}
                   </span>
                 ))}
@@ -174,13 +232,13 @@ function Records({ d, onMatch }: { d: Dashboard; onMatch: (id: number) => void }
     return [...(d.extras.fastest ?? [])].filter((f) => cost(f.item) >= 1800 && f.n >= 2 && !/^(aegis|cheese|refresher_shard)$/.test(f.item))
       .sort((a, b) => b.n - a.n)[0];
   }, [d, names]);
-  const cards: { label: string; value: string; sub: string; tone?: string; id?: number }[] = [];
+  const cards: { label: string; value: string; sub: string; tone?: string; id?: number; od?: boolean }[] = [];
   const g = rec("max_gpm"), k = rec("max_kills"), dmg = rec("max_hero_dmg"), long = rec("longest");
-  if (g) cards.push({ label: "Макс. GPM", value: String(Math.round(g.value)), sub: sub(g), tone: "accent", id: g.match_id });
-  if (k) cards.push({ label: "Больше всего убийств", value: String(k.value), sub: sub(k), id: k.match_id });
+  if (g) cards.push({ label: "Макс. GPM", value: String(Math.round(g.value)), sub: sub(g), tone: "accent", id: g.match_id, od: g.opendota });
+  if (k) cards.push({ label: "Больше всего убийств", value: String(k.value), sub: sub(k), id: k.match_id, od: k.opendota });
   if (fast) cards.push({ label: `Самый быстрый ${names.inflictor("item_" + fast.item)}`, value: clock(fast.t), sub: sub(fast), id: fast.match_id });
-  if (dmg) cards.push({ label: "Урон по героям", value: `${(dmg.value / 1000).toFixed(1)}k`, sub: sub(dmg), id: dmg.match_id });
-  if (long) cards.push({ label: "Самая длинная игра", value: duration(long.value), sub: sub(long, long.win ? "победа" : "поражение"), id: long.match_id });
+  if (dmg) cards.push({ label: "Урон по героям", value: `${(dmg.value / 1000).toFixed(1)}k`, sub: sub(dmg), id: dmg.match_id, od: dmg.opendota });
+  if (long) cards.push({ label: "Самая длинная игра", value: duration(long.value), sub: sub(long, long.win ? "победа" : "поражение"), id: long.match_id, od: long.opendota });
   const st = d.extras.streak;
   if (st.len > 0) cards.push({
     label: "Серия побед", value: String(st.len), tone: "win",
@@ -189,7 +247,8 @@ function Records({ d, onMatch }: { d: Dashboard; onMatch: (id: number) => void }
   return (
     <div className="grid3">
       {cards.map((c) => (
-        <div key={c.label} className={`stat ${c.id ? "record" : ""}`} onClick={() => c.id && onMatch(c.id)}>
+        <div key={c.label} className={`stat ${c.id ? "record" : ""}`} title={c.od ? "Без реплея — откроется на OpenDota" : undefined}
+          onClick={() => c.id && openMatch(c.id, c.od, onMatch)}>
           <div className="caps">{c.label}</div>
           <div className={`stat-value ${c.tone ?? ""}`}>{c.value}</div>
           <div className="stat-sub">{c.sub}</div>
