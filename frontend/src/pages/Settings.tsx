@@ -40,6 +40,15 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
     const f = await Api.PickMapImage();
     if (f) set("map_image", f);
   };
+  const reparse = async (onlyStale: boolean) => {
+    try {
+      const n = await Api.ReparseAll(onlyStale);
+      toast(n ? `В очередь на перепарсинг: ${n}` : "Нечего перепарсивать");
+    } catch (e: any) {
+      toast(String(e?.message ?? e), true);
+    }
+  };
+
   const refresh = async () => {
     setRefreshing(true);
     try {
@@ -114,6 +123,11 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
           <span className="dim">
             {names.raw.fetched_at ? `загружены ${date(names.raw.fetched_at)}` : "ещё не загружены — имена героев берутся из реплея"}
           </span>
+        </div>
+        <div className="row">
+          <button onClick={() => reparse(true)}>Перепарсить устаревшие</button>
+          <button onClick={() => { if (confirm("Перепарсить все реплеи заново? Это займёт время.")) reparse(false); }}>Перепарсить всё</button>
+          <span className="dim">после обновления парсера или если что-то выглядит неправильно</span>
         </div>
         <div className="row">
           <button onClick={update}>Проверить обновления</button>
