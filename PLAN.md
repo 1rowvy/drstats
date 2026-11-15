@@ -44,6 +44,7 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | Fights | 5 s buckets with ≥600 hero damage or a hero death, merged across gaps ≤10 s; kept if a death happened or ≥4000 damage, and the focused player dealt/took ≥150 or got a kill/assist; won = more enemy deaths (tie: gold swing); gold swing = change of team NW difference over the fight | Simple, explainable; on the test replay every kill of every player falls into a detected fight. |
 | Match grade | weighted percentile (KDA 1.5, GPM 1.2, XPM .8, hero dmg/min 1, KP 1, deaths 1 (lower better), LH@10 .8, tower dmg .5) against the player's other matches — same hero when ≥8 others, else all; ×85 + 15 for a win; letters A+…D; none with <5 reference matches | Personal, needs no external data. |
 | Moments / verdict | generated on the client from fights, deaths, objectives, item timings, hit rates, idle time, OpenDota benchmarks | Texts are UI; backend gives structured data. |
+| OpenDota match history | `/players/{account}/matches?significant=0` (projected basic fields: hero, result, K/D/A, LH/DN, GPM/XPM, hero/tower damage, healing, lane, party, mode) stored in `od_history`; full fetch first, then `date=<days since last sync + 1>`; synced on start (if older than 1 h), on Steam ID change and on demand; off with the OpenDota switch. Dashboard source «Все игры» merges it with replays (replay row wins for the same match); replay-only metrics (LH@10, wards, stacks, deaths map, fastest items, …) stay computed over replays only. Hero page stays on replays. Empty history → hint about «Expose Public Match Data» | Owner: dashboard over replays only is a biased sample (2026-11-16). |
 | Folder watching | poll the replay folder every 20 s, files must be ≥15 s old (Dota may still be writing); setting `watch_off` | Mockup «Слежу за папкой / Парсить новые сразу»; polling is portable and cheap. |
 | Import stages | the queue shows percent only, not header/entities/combat-log stages | Progress is measured by bytes read; manta has no stage hooks. |
 | Per-replay parse progress | bytes read from the .dem, `library:parsing` event, ≥2% steps | Cheap and monotonic; no manta hook needed. |
@@ -105,3 +106,8 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Replay folder watching (setting)
 - [x] Theme, fonts, top nav; Matches cards with grades; Import page
 - [x] Match: Разбор (flow, moments, verdict), Фарм, Драки, Смерти; Hero page; Dashboard
+
+### Dashboard over full OpenDota history
+- [ ] OpenDota player history client + `od_history` table + background sync
+- [ ] Dashboard source «Все игры / Только реплеи», merged aggregates
+- [ ] Dashboard UI: source switch, sync status, OpenDota-only matches
