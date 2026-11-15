@@ -10,4 +10,6 @@ export default defineConfig({
     strictPort: true,
   },
   plugins: [react(), wails("./bindings")],
+  // ECharts alone is ~600 kB; one chunk is fine for a local desktop app.
+  build: { chunkSizeWarningLimit: 1500 },
 });
