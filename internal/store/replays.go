@@ -26,6 +26,7 @@ type Replay struct {
 	MatchID       int64  `json:"match_id"`
 	AddedAt       int64  `json:"added_at"`
 	ParsedAt      int64  `json:"parsed_at"`
+	PrunedAt      int64  `json:"pruned_at"` // file removed by the storage cap; 0 = kept
 }
 
 // AddReplay registers a replay file. A known file whose size or mtime changed
@@ -58,9 +59,9 @@ func (s *Store) AddReplay(path string, size, mtime int64) (id int64, needsParse 
 func (s *Store) Replay(id int64) (*Replay, error) {
 	var r Replay
 	var matchID, parsedAt sql.NullInt64
-	err := s.db.QueryRow(`SELECT id, path, size, mtime, status, error, parser_version, match_id, added_at, parsed_at
+	err := s.db.QueryRow(`SELECT id, path, size, mtime, status, error, parser_version, match_id, added_at, parsed_at, pruned_at
 		FROM replays WHERE id = ?`, id).
-		Scan(&r.ID, &r.Path, &r.Size, &r.MTime, &r.Status, &r.Error, &r.ParserVersion, &matchID, &r.AddedAt, &parsedAt)
+		Scan(&r.ID, &r.Path, &r.Size, &r.MTime, &r.Status, &r.Error, &r.ParserVersion, &matchID, &r.AddedAt, &parsedAt, &r.PrunedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +144,7 @@ func (s *Store) DeleteReplay(id int64) error {
 // failed ones, which a newer parser may handle) are reset.
 func (s *Store) QueueReparse(onlyStale bool, version int) ([]int64, error) {
 	rows, err := s.db.Query(`UPDATE replays SET status = 'pending', error = ''
-		WHERE status IN ('done', 'failed') AND (? = 0 OR parser_version < ? OR status = 'failed')
+		WHERE status IN ('done', 'failed') AND pruned_at = 0 AND (? = 0 OR parser_version < ? OR status = 'failed')
 		RETURNING id`, onlyStale, version)
 	if err != nil {
 		return nil, err
@@ -160,9 +161,10 @@ func (s *Store) QueueReparse(onlyStale bool, version int) ([]int64, error) {
 	return ids, rows.Err()
 }
 
-// StaleCount returns how many parsed replays were parsed by an older parser version.
+// StaleCount returns how many parsed replays (with the file still kept) were
+// parsed by an older parser version.
 func (s *Store) StaleCount(version int) (int, error) {
 	var n int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM replays WHERE status = 'done' AND parser_version < ?`, version).Scan(&n)
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM replays WHERE status = 'done' AND pruned_at = 0 AND parser_version < ?`, version).Scan(&n)
 	return n, err
 }

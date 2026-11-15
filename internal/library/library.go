@@ -398,8 +398,17 @@ func (l *Library) ReparseAll(onlyStale bool) (int, error) {
 	return len(ids), nil
 }
 
-// Reparse queues one replay again regardless of its status.
+// ErrPruned means the replay file was removed by the storage cap.
+var ErrPruned = errors.New("реплей удалён, чтобы не занимать место: перепарсить его нельзя")
+
+// Reparse queues one replay again regardless of its status (but not a replay
+// whose file the storage cap removed).
 func (l *Library) Reparse(id int64) error {
+	if r, err := l.st.Replay(id); err != nil {
+		return err
+	} else if r.PrunedAt > 0 {
+		return ErrPruned
+	}
 	if err := l.st.SetStatus(id, store.StatusPending, ""); err != nil {
 		return err
 	}

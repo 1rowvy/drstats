@@ -274,7 +274,8 @@ type MatchRow struct {
 	Path      string  `json:"path"`
 	Status    string  `json:"status"`
 	Error     string  `json:"error"`
-	Stale     bool    `json:"stale"` // parsed by an older parser version
+	Stale     bool    `json:"stale"` // parsed by an older parser version (and still re-parsable)
+	Pruned    bool    `json:"pruned"` // replay file removed by the storage cap
 	MTime     int64   `json:"mtime"`
 	Size      int64   `json:"size"`     // replay file bytes
 	ParseMS   int64   `json:"parse_ms"` // last successful parse duration
@@ -314,7 +315,7 @@ type MatchRow struct {
 // already stored match are omitted.
 func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 	rows, err := s.db.Query(`
-		SELECT r.id, r.path, r.status, r.error, r.parser_version, r.mtime, r.size, r.parse_ms,
+		SELECT r.id, r.path, r.status, r.error, r.parser_version, r.mtime, r.size, r.parse_ms, r.pruned_at,
 		       m.match_id, m.game_mode, m.lobby_type, m.duration, m.end_time, m.winner,
 		       p.player_id, p.team, p.hero_id, p.hero_name, p.kills, p.deaths, p.assists, p.net_worth,
 		       p.name, p.last_hits, p.denies, p.total_gold, s.last_hits, o.position
@@ -333,18 +334,20 @@ func (s *Store) ListMatches(accountID uint32) ([]MatchRow, error) {
 	for rows.Next() {
 		var r MatchRow
 		var pv int
+		var pruned int64
 		var matchID, mode, lobby, endTime, winner sql.NullInt64
 		var dur sql.NullFloat64
 		var pid, team, heroID, k, d, a, nw sql.NullInt64
 		var hero, name sql.NullString
 		var lh, dn, gold, lh10, pos sql.NullInt64
-		if err := rows.Scan(&r.ReplayID, &r.Path, &r.Status, &r.Error, &pv, &r.MTime, &r.Size, &r.ParseMS,
+		if err := rows.Scan(&r.ReplayID, &r.Path, &r.Status, &r.Error, &pv, &r.MTime, &r.Size, &r.ParseMS, &pruned,
 			&matchID, &mode, &lobby, &dur, &endTime, &winner,
 			&pid, &team, &heroID, &hero, &k, &d, &a, &nw,
 			&name, &lh, &dn, &gold, &lh10, &pos); err != nil {
 			return nil, err
 		}
-		r.Stale = r.Status == StatusDone && pv < parser.Version
+		r.Pruned = pruned > 0
+		r.Stale = r.Status == StatusDone && pv < parser.Version && !r.Pruned
 		r.MatchID, r.GameMode, r.LobbyType = matchID.Int64, int(mode.Int64), int(lobby.Int64)
 		r.Duration, r.EndTime, r.Winner = dur.Float64, endTime.Int64, int(winner.Int64)
 		if pid.Valid {
