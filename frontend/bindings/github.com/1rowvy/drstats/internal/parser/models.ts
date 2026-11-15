@@ -30,4 +30,49 @@ export interface Death {
     "x": number;
     "y": number;
     "has_pos": boolean;
+
+    /**
+     * gold lost on this death
+     */
+    "gold_lost": number;
+
+    /**
+     * the victim bought back before respawning
+     */
+    "buyback": boolean;
+}
+
+/**
+ * Rune is a rune picked up (or bottled) by a player.
+ */
+export interface Rune {
+    "t": number;
+    "pid": number;
+    "type": number;
+    "bottled": boolean;
+}
+
+/**
+ * Ward is an observer or sentry ward placed by a player.
+ */
+export interface Ward {
+    "t": number;
+
+    /**
+     * removal time (expired or destroyed)
+     */
+    "end": number;
+    "pid": number;
+    "team": number;
+    "sentry": boolean;
+    "x": number;
+    "y": number;
+
+    /**
+     * Destroyed by an enemy: KillerPID is the player (-1 when not a hero),
+     * Killer the npc name of the attacker.
+     */
+    "destroyed": boolean;
+    "killer": number;
+    "killer_name": string;
 }

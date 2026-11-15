@@ -60,3 +60,72 @@ export function prettifyUnit(key: string): string {
 export function baseName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
+
+export function pct(v: number | null | undefined, digits = 0): string {
+  return v == null ? "—" : `${(v * 100).toFixed(digits)}%`;
+}
+
+/** Signed number: +12 / −3. */
+export function signed(v: number, digits = 0): string {
+  const s = Math.abs(v).toFixed(digits);
+  return v > 0 ? `+${s}` : v < 0 ? `−${s}` : s;
+}
+
+/** Signed game-time difference: +1:23 (later) / −0:45 (earlier). */
+export function signedClock(sec: number): string {
+  const s = clock(Math.abs(sec));
+  return sec > 0 ? `+${s}` : sec < 0 ? `−${s}` : s;
+}
+
+export const LANES: Record<string, string> = {
+  top: "Верх", mid: "Мид", bot: "Низ", jungle: "Лес", roam: "Роум", "": "—",
+};
+
+/** Lane name with safe/off-lane meaning for the team (Radiant safe = bot, Dire safe = top). */
+export function laneName(lane: string, team?: number): string {
+  const base = LANES[lane] ?? lane;
+  if (!team || (lane !== "top" && lane !== "bot")) return base;
+  const safe = (team === RADIANT && lane === "bot") || (team === DIRE && lane === "top");
+  return `${base} (${safe ? "лёгкая" : "сложная"})`;
+}
+
+export const GOLD_SOURCES: Record<string, string> = {
+  creep: "Крипы на линии", neutral: "Нейтралы", hero: "Герои", building: "Строения",
+  passive: "Пассивное", bounty: "Баунти-руны", roshan: "Рошан", other: "Прочее",
+};
+
+export const RUNES: Record<number, string> = {
+  0: "Двойной урон", 1: "Ускорение", 2: "Иллюзии", 3: "Невидимость", 4: "Регенерация",
+  5: "Баунти", 6: "Чародейство", 7: "Вода", 8: "Мудрость", 9: "Щит",
+};
+
+export const UNIT_CATEGORIES: Record<string, string> = {
+  creep: "Крипы", neutral: "Нейтралы", building: "Строения", roshan: "Рошан", illusion: "Иллюзии",
+  ward: "Варды", unit: "Прочие юниты",
+};
+
+export const SOURCE_KINDS: Record<string, string> = {
+  autoattack: "Автоатака", ability: "Способности", item: "Предметы",
+};
+
+/** Aggregate metrics (stats.metrics keys). */
+export const METRICS: Record<string, { label: string; fmt: (v: number) => string }> = {
+  kda: { label: "KDA", fmt: (v) => v.toFixed(2) },
+  kills: { label: "Убийства", fmt: (v) => v.toFixed(1) },
+  deaths: { label: "Смерти", fmt: (v) => v.toFixed(1) },
+  assists: { label: "Помощь", fmt: (v) => v.toFixed(1) },
+  gpm: { label: "GPM", fmt: (v) => Math.round(v).toString() },
+  xpm: { label: "XPM", fmt: (v) => Math.round(v).toString() },
+  lh10: { label: "LH @10", fmt: (v) => v.toFixed(1) },
+  dn10: { label: "DN @10", fmt: (v) => v.toFixed(1) },
+  nw10: { label: "NW @10", fmt: (v) => Math.round(v).toLocaleString("ru-RU") },
+  deaths10: { label: "Смерти до 10:00", fmt: (v) => v.toFixed(2) },
+  kp: { label: "Участие в убийствах", fmt: (v) => pct(v) },
+  hero_dmg_pm: { label: "Урон героям / мин", fmt: (v) => Math.round(v).toString() },
+  tower_dmg: { label: "Урон строениям", fmt: (v) => Math.round(v).toLocaleString("ru-RU") },
+  gold_lost: { label: "Потеряно золота", fmt: (v) => Math.round(v).toLocaleString("ru-RU") },
+  wards: { label: "Вардов поставлено", fmt: (v) => v.toFixed(1) },
+  stacks: { label: "Стаков", fmt: (v) => v.toFixed(1) },
+};
+
+export const WEEKDAYS = ["", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];

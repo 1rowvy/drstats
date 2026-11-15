@@ -14,6 +14,11 @@ import "../github.com/wailsapp/wails/v3/internal/eventcreate.js";
 export const ConstantsUpdated = "constants:updated";
 
 /**
+ * Name of the custom event "download:progress".
+ */
+export const DownloadProgress = "download:progress";
+
+/**
  * Name of the custom event "library:imported".
  */
 export const LibraryImported = "library:imported";

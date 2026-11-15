@@ -9,6 +9,11 @@ export interface Progress {
     "parsing": number;
     "done": number;
     "failed": number;
+
+    /**
+     * parsed by an older parser version
+     */
+    "stale": number;
 }
 
 /**

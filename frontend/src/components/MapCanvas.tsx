@@ -38,8 +38,12 @@ export function resetMapImage() {
  * [world[0], world[1]] on both axes; y grows upwards (Radiant bottom-left).
  * Without a user background a schematic map (lanes, river, bases) is drawn.
  */
-export function MapCanvas({ points, world, size = 520, onHover }: {
+export function MapCanvas({ points, world, size = 520, onHover, heat, segments }: {
   points: MapPoint[]; world: number[]; size?: number; onHover?: (index: number | null) => void;
+  /** World positions drawn as a density heatmap under the points. */
+  heat?: number[][];
+  /** Lines between world points (e.g. ward → nothing, path), drawn under points. */
+  segments?: { from: number[]; to: number[]; color: string }[];
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [bg, setBg] = useState<HTMLImageElement | null>(null);
@@ -68,10 +72,19 @@ export function MapCanvas({ points, world, size = 520, onHover }: {
     } else {
       drawSchematic(ctx, size, toPx);
     }
+    if (heat && heat.length) drawHeat(ctx, size, heat.map(([x, y]) => toPx(x, y)));
+    for (const sg of segments ?? []) {
+      ctx.beginPath();
+      ctx.moveTo(...toPx(sg.from[0], sg.from[1]));
+      ctx.lineTo(...toPx(sg.to[0], sg.to[1]));
+      ctx.strokeStyle = sg.color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
     for (const p of points.filter((p) => !p.highlight)) drawPoint(ctx, toPx(p.x, p.y), p.color, 5);
     for (const p of points.filter((p) => p.highlight)) drawPoint(ctx, toPx(p.x, p.y), p.color, 9, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [points, bg, size, min, max]);
+  }, [points, bg, size, min, max, heat, segments]);
 
   const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!onHover) return;
@@ -153,4 +166,36 @@ function drawSchematic(ctx: CanvasRenderingContext2D, size: number, toPx: ToPx) 
   };
   base(-6700, -6200, "rgba(95,209,122,0.35)");
   base(6500, 6000, "rgba(255,107,91,0.35)");
+}
+
+/** Density heatmap: additive blobs in an offscreen alpha buffer, colourized blue → yellow → red. */
+function drawHeat(ctx: CanvasRenderingContext2D, size: number, pts: [number, number][]) {
+  const off = document.createElement("canvas");
+  off.width = size;
+  off.height = size;
+  const o = off.getContext("2d")!;
+  const r = size * 0.035;
+  const a = Math.min(0.35, Math.max(0.04, 12 / Math.sqrt(pts.length)));
+  for (const [x, y] of pts) {
+    const g = o.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(0,0,0,${a})`);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    o.fillStyle = g;
+    o.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const img = o.getImageData(0, 0, size, size);
+  const d = img.data;
+  let peak = 1;
+  for (let i = 3; i < d.length; i += 4) peak = Math.max(peak, d[i]);
+  for (let i = 0; i < d.length; i += 4) {
+    const v = d[i + 3] / peak;
+    if (v <= 0.02) { d[i + 3] = 0; continue; }
+    // 0 → blue, 0.5 → yellow, 1 → red
+    const rr = v < 0.5 ? 255 * v * 2 : 255;
+    const gg = v < 0.5 ? 200 * v * 2 + 40 : 240 - (v - 0.5) * 2 * 200;
+    const bb = v < 0.5 ? 255 * (1 - v * 2) : 0;
+    d[i] = rr; d[i + 1] = gg; d[i + 2] = bb; d[i + 3] = Math.min(220, 60 + v * 200);
+  }
+  o.putImageData(img, 0, 0);
+  ctx.drawImage(off, 0, 0, size, size);
 }

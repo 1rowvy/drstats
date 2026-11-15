@@ -38,10 +38,28 @@ export function CheckForUpdates(): $CancellablePromise<void> {
 }
 
 /**
+ * Dashboard returns aggregates over "my" matches under a filter (hero page:
+ * filter by hero).
+ */
+export function Dashboard(f: stats$0.Filter): $CancellablePromise<stats$0.Dashboard | null> {
+    return $Call.ByID(512916435, f);
+}
+
+/**
  * DefaultReplayDir returns the OS default replay folder.
  */
 export function DefaultReplayDir(): $CancellablePromise<string> {
     return $Call.ByID(1349992672);
+}
+
+/**
+ * DownloadMatch starts downloading a replay by match id (or match URL) in the
+ * background; progress and the result come as download:progress events, and
+ * the file is imported when done. It saves into the replay folder when it
+ * exists, else into the app data folder.
+ */
+export function DownloadMatch(input: string): $CancellablePromise<number> {
+    return $Call.ByID(179656442, input);
 }
 
 /**
@@ -133,6 +151,14 @@ export function RefreshConstants(): $CancellablePromise<void> {
  */
 export function Reparse(replayID: number): $CancellablePromise<void> {
     return $Call.ByID(2978301847, replayID);
+}
+
+/**
+ * ReparseAll queues parsed replays again; onlyStale limits it to replays
+ * parsed by an older parser version (and failed ones).
+ */
+export function ReparseAll(onlyStale: boolean): $CancellablePromise<number> {
+    return $Call.ByID(1958417426, onlyStale);
 }
 
 /**

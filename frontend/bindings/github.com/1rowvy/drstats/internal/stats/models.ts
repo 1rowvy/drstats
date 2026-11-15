@@ -9,6 +9,134 @@ import * as parser$0 from "../parser/models.js";
 import * as store$0 from "../store/models.js";
 
 /**
+ * Abilities is the Abilities tab.
+ */
+export interface Abilities {
+    "uses": AbilityUse[] | null;
+    "hit_window": number;
+}
+
+/**
+ * AbilityUse is the cast summary of one ability or active item.
+ */
+export interface AbilityUse {
+    "ability": string;
+    "is_item": boolean;
+    "casts": number;
+
+    /**
+     * Hits: casts followed by damage/debuff on an enemy hero within the hit
+     * window (heuristic). HitRate is nil when the ability never touched an
+     * enemy hero in this match (probably not an offensive spell).
+     */
+    "hits": number;
+    "hit_rate": number | null;
+
+    /**
+     * damage to heroes by this inflictor
+     */
+    "damage": number;
+
+    /**
+     * cast times
+     */
+    "times": number[] | null;
+}
+
+/**
+ * Amount is a labelled total.
+ */
+export interface Amount {
+    /**
+     * hero npc name, unit category, inflictor or source kind
+     */
+    "key": string;
+    "amount": number;
+    "count": number;
+}
+
+/**
+ * Bucket is a winrate group (hero, weekday, hour, lane).
+ */
+export interface Bucket {
+    "key": string;
+    "games": number;
+    "wins": number;
+    "winrate": number;
+    "kda": number;
+    "gpm": number;
+}
+
+/**
+ * Dashboard is the aggregate view over the filtered matches.
+ */
+export interface Dashboard {
+    "filter": Filter;
+    "games": number;
+    "wins": number;
+    "winrate": number;
+    "averages": MetricAvg[] | null;
+
+    /**
+     * key: hero npc name
+     */
+    "by_hero": Bucket[] | null;
+
+    /**
+     * key: 1 (Mon) .. 7 (Sun), local time of the game start
+     */
+    "by_weekday": Bucket[] | null;
+
+    /**
+     * key: 0..23
+     */
+    "by_hour": Bucket[] | null;
+    "by_lane": Bucket[] | null;
+
+    /**
+     * last TrendLength matches, oldest first
+     */
+    "trend": TrendGame[] | null;
+    "habits": Habit[] | null;
+
+    /**
+     * newest first
+     */
+    "recent": Game[] | null;
+
+    /**
+     * positioned deaths in the filtered matches
+     */
+    "deaths": store$0.DeathPoint[] | null;
+
+    /**
+     * all heroes played (unfiltered)
+     */
+    "heroes": HeroOption[] | null;
+
+    /**
+     * all game modes played (unfiltered)
+     */
+    "modes": number[] | null;
+
+    /**
+     * set when Filter.HeroID != 0
+     */
+    "hero": HeroExtras | null;
+    "world": number[];
+
+    /**
+     * matches before filtering
+     */
+    "total": number;
+
+    /**
+     * no Steam ID configured
+     */
+    "unknown": boolean;
+}
+
+/**
  * Farm are the series for the Farm tab.
  */
 export interface Farm {
@@ -17,6 +145,325 @@ export interface Farm {
     "gpm": Metric;
     "xpm": Metric;
     "last_hits": Metric;
+}
+
+/**
+ * Fights is the Fights tab.
+ */
+export interface Fights {
+    "team_kills": number;
+
+    /**
+     * (kills + assists) / team kills
+     */
+    "kp": number;
+    "dmg_out_total": number;
+
+    /**
+     * by enemy hero
+     */
+    "dmg_out_heroes": Amount[] | null;
+
+    /**
+     * by unit category (creep, building, ...)
+     */
+    "dmg_out_units": Amount[] | null;
+
+    /**
+     * autoattack / ability / item, to heroes
+     */
+    "dmg_out_source": Amount[] | null;
+    "dmg_out_by_inflictor": Amount[] | null;
+    "dmg_in_total": number;
+
+    /**
+     * by enemy hero
+     */
+    "dmg_in_heroes": Amount[] | null;
+    "dmg_in_units": Amount[] | null;
+
+    /**
+     * from heroes
+     */
+    "dmg_in_source": Amount[] | null;
+    "dmg_in_by_inflictor": Amount[] | null;
+    "heal_total": number;
+    "heal_targets": Amount[] | null;
+    "building_dmg": number;
+
+    /**
+     * scoreboard values
+     */
+    "hero_damage": number;
+    "tower_damage": number;
+    "stuns": number;
+}
+
+/**
+ * Filter narrows the matches an aggregate is computed over. Zero values mean "any".
+ */
+export interface Filter {
+    "hero_id": number;
+
+    /**
+     * only matches of the last N days
+     */
+    "days": number;
+
+    /**
+     * only the last N matches (after the other filters)
+     */
+    "last": number;
+
+    /**
+     * "win" / "loss"
+     */
+    "result": string;
+
+    /**
+     * game_mode
+     */
+    "mode": number;
+
+    /**
+     * detected lane
+     */
+    "lane": string;
+}
+
+/**
+ * Game is a GameRow with derived values.
+ */
+export interface Game {
+    "match_id": number;
+    "end_time": number;
+    "duration": number;
+    "winner": number;
+    "game_mode": number;
+    "lobby_type": number;
+    "player_id": number;
+    "team": number;
+    "hero_id": number;
+    "hero_name": string;
+    "kills": number;
+    "deaths": number;
+    "assists": number;
+    "last_hits": number;
+    "denies": number;
+    "net_worth": number;
+    "total_gold": number;
+    "total_xp": number;
+    "hero_damage": number;
+    "tower_damage": number;
+    "healing": number;
+    "gold_lost": number;
+    "obs_placed": number;
+    "sen_placed": number;
+    "camps_stacked": number;
+    "stuns": number;
+    "team_kills": number;
+
+    /**
+     * Laning stage (nil when the series has no sample at 10:00).
+     */
+    "lh10": number | null;
+    "dn10": number | null;
+    "nw10": number | null;
+    "xp10": number | null;
+
+    /**
+     * deaths before 10:00
+     */
+    "deaths10": number;
+    "win": boolean;
+    "lane": string;
+}
+
+/**
+ * Gold is the Gold tab: sources, farm-over-time and idle periods.
+ */
+export interface Gold {
+    "sources": GoldSource[] | null;
+
+    /**
+     * cumulative lane-creep gold, aligned with Farm.T
+     */
+    "creep": Line;
+
+    /**
+     * cumulative neutral gold
+     */
+    "neutral": Line;
+    "gold_lost": number;
+    "idle": IdlePeriod[] | null;
+
+    /**
+     * seconds
+     */
+    "idle_total": number;
+    "threshold": number;
+}
+
+/**
+ * GoldSource is one slice of the earned-gold breakdown.
+ */
+export interface GoldSource {
+    /**
+     * creep, neutral, hero, building, passive, bounty, roshan, other
+     */
+    "key": string;
+    "amount": number;
+}
+
+/**
+ * Habit compares the last HabitRecent matches with the earlier ones.
+ */
+export interface Habit {
+    "key": string;
+    "higher_better": boolean;
+    "recent": number;
+    "before": number;
+
+    /**
+     * relative, signed so that negative = worse
+     */
+    "change": number;
+    "worse": boolean;
+}
+
+/**
+ * HeroExtras are the hero-page-only aggregates.
+ */
+export interface HeroExtras {
+    /**
+     * average first purchase time
+     */
+    "items": store$0.ItemTiming[] | null;
+
+    /**
+     * casts over all matches on the hero
+     */
+    "abilities": store$0.AbilityTotal[] | null;
+}
+
+/**
+ * HeroOption is a hero the account has played (for filter pickers).
+ */
+export interface HeroOption {
+    "hero_id": number;
+    "hero_name": string;
+    "games": number;
+}
+
+/**
+ * IdlePeriod is a stretch of alive time without farm or fight.
+ */
+export interface IdlePeriod {
+    "from": number;
+    "to": number;
+
+    /**
+     * position in the middle of the period
+     */
+    "x": number;
+    "y": number;
+}
+
+/**
+ * ItemTiming is a purchase with the player's usual timing of the same item
+ * on the same hero (other matches, first purchase per match).
+ */
+export interface ItemTiming {
+    "t": number;
+    "item": string;
+
+    /**
+     * nil if never bought in other matches
+     */
+    "avg": number | null;
+
+    /**
+     * matches the average is over
+     */
+    "n": number;
+
+    /**
+     * T - Avg, first purchase only
+     */
+    "diff": number | null;
+
+    /**
+     * first purchase of this item in the match
+     */
+    "first": boolean;
+}
+
+/**
+ * LaneSnap compares the focused player with the lane opponent at a moment.
+ */
+export interface LaneSnap {
+    "t": number;
+    "lh": number;
+    "dn": number;
+    "nw": number;
+    "xp": number;
+    "level": number;
+
+    /**
+     * Opponent values; nil when there is no opponent or no sample.
+     */
+    "opp": LaneSnapValues | null;
+}
+
+/**
+ * LaneSnapValues are one player's values at a LaneSnap moment.
+ */
+export interface LaneSnapValues {
+    "lh": number;
+    "dn": number;
+    "nw": number;
+    "xp": number;
+    "level": number;
+}
+
+/**
+ * Laning is the laning-stage summary (first 10 minutes).
+ */
+export interface Laning {
+    /**
+     * top / mid / bot / jungle / roam / ""
+     */
+    "lane": string;
+
+    /**
+     * lane of the opponent
+     */
+    "opp_lane": string;
+
+    /**
+     * @5:00 and @10:00
+     */
+    "snaps": LaneSnap[] | null;
+
+    /**
+     * focus deaths before 10:00
+     */
+    "deaths": parser$0.Death[] | null;
+
+    /**
+     * kills by focus before 10:00
+     */
+    "kills": number;
+
+    /**
+     * assists before 10:00
+     */
+    "assists": number;
+
+    /**
+     * end of the laning window, seconds
+     */
+    "lane_ends": number;
 }
 
 /**
@@ -49,6 +496,16 @@ export interface MatchView {
      * map coordinate bounds [min, max]
      */
     "world": number[];
+
+    /**
+     * Analyses of the focused player (zero values when Focus < 0).
+     */
+    "laning": Laning;
+    "gold": Gold;
+    "items": ItemTiming[] | null;
+    "fights": Fights;
+    "abilities": Abilities;
+    "vision": Vision;
 }
 
 /**
@@ -66,6 +523,15 @@ export interface Metric {
      * lane opponent; empty when unknown
      */
     "opponent": Line;
+}
+
+/**
+ * MetricAvg is an average of one metric.
+ */
+export interface MetricAvg {
+    "key": string;
+    "avg": number;
+    "n": number;
 }
 
 /**
@@ -103,6 +569,139 @@ export interface PlayerView {
     "tower_damage": number;
     "healing": number;
     "rank_tier": number;
+
+    /**
+     * Earned gold by source (final, cumulative).
+     * lane creep kills and denies
+     */
+    "gold_creep": number;
+
+    /**
+     * neutral creep kills
+     */
+    "gold_neutral": number;
+
+    /**
+     * hero kills and assists
+     */
+    "gold_hero": number;
+
+    /**
+     * towers, barracks, outposts
+     */
+    "gold_building": number;
+
+    /**
+     * periodic income
+     */
+    "gold_passive": number;
+
+    /**
+     * bounty runes
+     */
+    "gold_bounty": number;
+    "gold_roshan": number;
+
+    /**
+     * everything else (couriers, wards, abilities, comeback...)
+     */
+    "gold_other": number;
+
+    /**
+     * lost on death
+     */
+    "gold_lost": number;
+
+    /**
+     * count
+     */
+    "buybacks": number;
+    "camps_stacked": number;
+
+    /**
+     * seconds of stun dealt
+     */
+    "stuns": number;
+    "obs_placed": number;
+    "sen_placed": number;
+    "wards_destroyed": number;
+    "rune_pickups": number;
     "gpm": number;
     "xpm": number;
+}
+
+/**
+ * TimeShare is how the player's alive time splits between map zones (fractions, sum 1).
+ */
+export interface TimeShare {
+    /**
+     * own base
+     */
+    "base": number;
+
+    /**
+     * own laning-stage lane, own half
+     */
+    "lane": number;
+
+    /**
+     * own half outside the own lane (jungle, river, other lanes)
+     */
+    "jungle": number;
+
+    /**
+     * enemy half (incl. enemy base)
+     */
+    "enemy": number;
+}
+
+/**
+ * TrendGame is one match on the trend chart.
+ */
+export interface TrendGame {
+    "match_id": number;
+    "end_time": number;
+    "win": boolean;
+    "hero_name": string;
+    "values": { [_ in string]?: number | null } | null;
+}
+
+/**
+ * Vision is the Vision & map tab.
+ */
+export interface Vision {
+    /**
+     * wards placed by the player
+     */
+    "placed": parser$0.Ward[] | null;
+
+    /**
+     * enemy wards the player destroyed
+     */
+    "destroyed": parser$0.Ward[] | null;
+    "obs_placed": number;
+    "sen_placed": number;
+
+    /**
+     * own wards destroyed by enemies
+     */
+    "my_lost": number;
+
+    /**
+     * seconds
+     */
+    "obs_avg_life": number;
+
+    /**
+     * stack times
+     */
+    "stacks": number[] | null;
+    "runes": parser$0.Rune[] | null;
+
+    /**
+     * alive positions (one per series step)
+     */
+    "heat": number[][] | null;
+    "time_share": TimeShare;
+    "lane": string;
 }

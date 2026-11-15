@@ -1,14 +1,16 @@
 import { useEffect, useRef } from "react";
 import * as echarts from "echarts/core";
-import { LineChart } from "echarts/charts";
+import { BarChart, LineChart } from "echarts/charts";
 import { DataZoomComponent, GridComponent, LegendComponent, TitleComponent, TooltipComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import type { EChartsOption } from "echarts";
 
-echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, DataZoomComponent, CanvasRenderer]);
+echarts.use([LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, DataZoomComponent, CanvasRenderer]);
 
 /** Minimal React wrapper around an ECharts instance (resizes with its box). */
-export function EChart({ option, height }: { option: EChartsOption; height: number }) {
+export function EChart({ option, height, onClick }: {
+  option: EChartsOption; height: number; onClick?: (dataIndex: number) => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts>();
 
@@ -26,6 +28,14 @@ export function EChart({ option, height }: { option: EChartsOption; height: numb
   useEffect(() => {
     chart.current?.setOption(option, { notMerge: true });
   }, [option]);
+
+  useEffect(() => {
+    const c = chart.current;
+    if (!c || !onClick) return;
+    const h = (p: any) => onClick(p.dataIndex);
+    c.on("click", h);
+    return () => { c.off("click", h); };
+  }, [onClick]);
 
   return <div ref={ref} style={{ height, width: "100%" }} />;
 }

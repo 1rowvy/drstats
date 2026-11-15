@@ -161,3 +161,35 @@ code { background: var(--bg-3); padding: 1px 5px; border-radius: 4px; }
 .scoreboard th:nth-child(13) { width: 7%; }
 .scoreboard td { overflow: hidden; text-overflow: ellipsis; }
 .list-card td:last-child { white-space: normal; }
+
+/* ---- phase 3 ---- */
+select {
+  font: inherit; color: var(--text); background: var(--bg-1); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px;
+}
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+.stat-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.stat { background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; min-width: 130px; }
+.stat-label { color: var(--text-faint); font-size: 12px; }
+.stat-value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+.stat-sub { color: var(--text-dim); font-size: 12px; margin-top: 2px; max-width: 240px; }
+.habits { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.habit { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-2); }
+.habit.bad { border-color: rgba(255,107,91,.45); }
+.habit.good { border-color: rgba(95,209,122,.35); }
+.hitbar { position: relative; display: inline-block; width: 120px; height: 16px; background: var(--bg-3); border-radius: 4px; overflow: hidden; vertical-align: middle; }
+.hitbar span { position: absolute; inset: 0 auto 0 0; opacity: .7; }
+.hitbar em { position: relative; font-style: normal; font-size: 11px; padding-left: 6px; line-height: 16px; }
+.times { white-space: normal !important; max-width: 420px; }
+.time-share { margin-top: 14px; }
+.share { margin-bottom: 8px; }
+.share-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-dim); }
+.share-bar { height: 6px; background: var(--bg-3); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.share-bar div { height: 100%; }
+tr.minor td { color: var(--text-dim); }
+.title-link { font-size: inherit; font-weight: inherit; color: var(--text); }
+.title-link:hover { color: var(--accent); }
+.dl-form { display: flex; gap: 4px; margin-top: 6px; }
+.dl-form input { padding: 5px 8px; min-width: 0; }
+.dl-form button { padding: 5px 10px; }
+.stale { margin-top: 8px; color: var(--warn); }

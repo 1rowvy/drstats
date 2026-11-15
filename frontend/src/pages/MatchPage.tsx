@@ -3,12 +3,23 @@ import { Api, Death, MatchView, PlayerView } from "../api";
 import { clock, date, DIRE, duration, gameMode, RADIANT, teamName, thousands } from "../format";
 import { useNames } from "../names";
 import { HeroBadge, HeroName } from "../components/HeroBadge";
-import { SERIES_COLORS, TimeChart } from "../components/Chart";
 import { MapCanvas, MapPoint } from "../components/MapCanvas";
+import { AbilitiesTab, deathExtras, FarmTab, FightsTab, ItemsTab, LaningTab, VisionTab } from "./MatchTabs";
 
-type Tab = "overview" | "farm" | "deaths";
+type Tab = "overview" | "laning" | "farm" | "items" | "deaths" | "fights" | "abilities" | "vision";
 
-export function MatchPage({ matchID, onBack }: { matchID: number; onBack: () => void }) {
+const TABS: { id: Tab; label: string }[] = [
+  { id: "overview", label: "Обзор" },
+  { id: "laning", label: "Лейнинг" },
+  { id: "farm", label: "Фарм и золото" },
+  { id: "items", label: "Предметы" },
+  { id: "deaths", label: "Смерти" },
+  { id: "fights", label: "Драки" },
+  { id: "abilities", label: "Способности" },
+  { id: "vision", label: "Вижн и карта" },
+];
+
+export function MatchPage({ matchID, onBack, onHero }: { matchID: number; onBack: () => void; onHero?: (heroID: number) => void }) {
   const [focus, setFocus] = useState(-1);
   const [view, setView] = useState<MatchView | null>(null);
   const [error, setError] = useState("");
@@ -34,7 +45,9 @@ export function MatchPage({ matchID, onBack }: { matchID: number; onBack: () => 
         {me && <HeroBadge npc={me.hero_name} size={48} />}
         <div>
           <h1>
-            {me ? <HeroTitle npc={me.hero_name} /> : "Матч"}{" "}
+            {me ? (onHero && view.is_me
+              ? <button className="link title-link" onClick={() => onHero(me.hero_id)} title="Страница героя"><HeroTitle npc={me.hero_name} /></button>
+              : <HeroTitle npc={me.hero_name} />) : "Матч"}{" "}
             {won !== null && (won ? <span className="win">Победа</span> : <span className="loss">Поражение</span>)}
           </h1>
           <div className="dim">
@@ -46,14 +59,19 @@ export function MatchPage({ matchID, onBack }: { matchID: number; onBack: () => 
       </div>
 
       <div className="tabs">
-        <button className={tab === "overview" ? "on" : ""} onClick={() => setTab("overview")}>Обзор</button>
-        <button className={tab === "farm" ? "on" : ""} onClick={() => setTab("farm")} disabled={!me}>Фарм</button>
-        <button className={tab === "deaths" ? "on" : ""} onClick={() => setTab("deaths")} disabled={!me}>Смерти</button>
+        {TABS.map((t) => (
+          <button key={t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)} disabled={!me && t.id !== "overview"}>{t.label}</button>
+        ))}
       </div>
 
       {tab === "overview" && <Overview view={view} onPick={setFocus} />}
-      {tab === "farm" && me && <FarmTab view={view} />}
-      {tab === "deaths" && me && <DeathsTab view={view} />}
+      {me && tab === "laning" && <LaningTab view={view} />}
+      {me && tab === "farm" && <FarmTab view={view} />}
+      {me && tab === "items" && <ItemsTab view={view} />}
+      {me && tab === "deaths" && <DeathsTab view={view} />}
+      {me && tab === "fights" && <FightsTab view={view} />}
+      {me && tab === "abilities" && <AbilitiesTab view={view} />}
+      {me && tab === "vision" && <VisionTab view={view} />}
     </div>
   );
 }
@@ -114,28 +132,6 @@ function ScoreRow({ p, focus, opponent, onPick }: { p: PlayerView; focus: boolea
   );
 }
 
-function FarmTab({ view }: { view: MatchView }) {
-  const names = useNames();
-  const players = view.players ?? [];
-  const me = players.find((p) => p.player_id === view.focus)!;
-  const opp = players.find((p) => p.player_id === view.opponent);
-  const t = view.farm.t ?? [];
-  const lines = (m: { focus: any; team_avg: any; opponent: any }) => [
-    { name: names.hero(me.hero_name), data: m.focus, color: SERIES_COLORS.focus },
-    { name: "Среднее по команде", data: m.team_avg, color: SERIES_COLORS.team, dashed: true },
-    ...(opp ? [{ name: `${names.hero(opp.hero_name)} (оппонент)`, data: m.opponent, color: SERIES_COLORS.opponent }] : []),
-  ];
-  return (
-    <div className="grid2">
-      <div className="card"><TimeChart title="Net worth" t={t} lines={lines(view.farm.net_worth)} /></div>
-      <div className="card"><TimeChart title="GPM" t={t} lines={lines(view.farm.gpm)} /></div>
-      <div className="card"><TimeChart title="XPM" t={t} lines={lines(view.farm.xpm)} /></div>
-      <div className="card"><TimeChart title="Last hits" t={t} lines={lines(view.farm.last_hits)} /></div>
-      {!opp && <div className="dim small">Лайн-оппонента определить не удалось.</div>}
-    </div>
-  );
-}
-
 type DeathKind = "death" | "kill";
 
 function DeathsTab({ view }: { view: MatchView }) {
@@ -186,7 +182,7 @@ function DeathsTab({ view }: { view: MatchView }) {
       </div>
       <div className="card list-card">
         <table className="table">
-          <thead><tr><th>Время</th><th></th><th>Кто</th><th>Чем</th><th>Помогали</th></tr></thead>
+          <thead><tr><th>Время</th><th></th><th>Кто</th><th>Чем</th><th>Помогали</th><th>Золото</th></tr></thead>
           <tbody>
             {items.map((it, i) => {
               const other = it.kind === "death" ? it.d.killer : it.d.victim;
@@ -199,6 +195,7 @@ function DeathsTab({ view }: { view: MatchView }) {
                   <td><span className="hero-name">{otherHero && <HeroBadge npc={otherHero} size={20} />}{otherName}</span></td>
                   <td className="dim">{names.inflictor(it.d.inflictor)}</td>
                   <td className="dim">{(it.d.assists ?? []).map((a) => who(a, "")).join(", ") || "—"}</td>
+                  <td>{it.kind === "death" ? deathExtras(it.d) : <span className="dim">—</span>}</td>
                 </tr>
               );
             })}
