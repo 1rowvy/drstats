@@ -5,6 +5,7 @@ export type { MatchRow, MatchMeta, DeathPoint, ItemTiming as ItemAvgRow, Ability
 export type {
   MatchView, PlayerView, DeathCtx, Farm, Metric, Line, Laning, LaneSnap, Gold, IdlePeriod, ItemTiming, Fights, Amount,
   Abilities, AbilityUse, Vision, TimeShare, Dashboard, Filter, Bucket, Habit, TrendGame, MetricAvg, Game, HeroOption,
+  Battle, FightHero, ObjectiveView, Grade, Extras, Record as RecordRow, DayBucket, FastItemView, Streak,
 } from "../bindings/github.com/1rowvy/drstats/internal/stats/models";
 export type { Death, Ward, Rune } from "../bindings/github.com/1rowvy/drstats/internal/parser/models";
 export type { Settings } from "../bindings/github.com/1rowvy/drstats/internal/settings/models";

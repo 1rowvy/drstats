@@ -207,3 +207,39 @@ export function plural(n: number, one: string, few: string, many: string): strin
   if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
   return many;
 }
+
+/** Colour class of a grade letter: A-grades accent, D red, the rest neutral. */
+export function gradeTone(letter: string): string {
+  if (letter.startsWith("A")) return "accent";
+  if (letter === "D") return "loss";
+  return "";
+}
+
+/** Compact thousands: 24.8k, 6.5k, 980. */
+export function kfmt(v: number, sign = false): string {
+  const a = Math.abs(v);
+  const s = a >= 1000 ? `${(a / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(Math.round(a));
+  if (sign) return v > 0 ? `+${s}` : v < 0 ? `−${s}` : s;
+  return v < 0 ? `−${s}` : s;
+}
+
+/** File size in MB: "64 МБ". */
+export function mb(bytes: number): string {
+  return `${Math.max(1, Math.round(bytes / 1048576))} МБ`;
+}
+
+/** Lowercase the first letter (for phrases built from labels). */
+export const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
+/** Upper-case the first letter. */
+export const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Copy text to the clipboard; resolves false when the browser refuses. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}

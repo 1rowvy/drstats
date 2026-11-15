@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
 import { Api, AppEvents, DownloadProgress, MatchRow, ParseProgress, Progress, ReplayEvent, Settings } from "./api";
 import { Icon } from "./components/Icon";
+import { ToastCtx } from "./components/ui";
 import { plural } from "./format";
 import { NamesProvider } from "./names";
 import { MatchesPage } from "./pages/Matches";
@@ -9,12 +10,14 @@ import { MatchPage } from "./pages/MatchPage";
 import { SettingsPage } from "./pages/Settings";
 import { DashboardPage } from "./pages/Dashboard";
 import { HeroPage } from "./pages/HeroPage";
+import { ImportPage } from "./pages/Import";
 
 type Route =
   | { page: "dashboard" }
   | { page: "matches" }
   | { page: "match"; id: number }
   | { page: "hero"; id: number }
+  | { page: "import" }
   | { page: "settings" };
 
 export default function App() {
@@ -25,17 +28,11 @@ export default function App() {
   );
 }
 
-/** Last two path components: "…/dota/replays". */
-function shortPath(p: string): string {
-  const parts = p.split(/[\\/]/).filter(Boolean);
-  return parts.length > 2 ? `…/${parts.slice(-2).join("/")}` : p;
-}
-
 function Shell() {
   const [history, setHistory] = useState<Route[]>([{ page: "matches" }]);
   const route = history[history.length - 1];
   const go = useCallback((r: Route) => setHistory((h) => [...h, r].slice(-30)), []);
-  const back = useCallback(() => setHistory((h) => (h.length > 1 ? h.slice(0, -1) : h)), []);
+  const back = useCallback(() => setHistory((h) => (h.length > 1 ? h.slice(0, -1) : [{ page: "matches" }])), []);
   const top = (r: Route) => setHistory([r]);
   const [tick, setTick] = useState(0);
   const [dl, setDl] = useState<DownloadProgress | null>(null);
@@ -43,7 +40,6 @@ function Shell() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [parsing, setParsing] = useState<Record<number, number>>({});
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [version, setVersion] = useState("");
   const [toast, setToast] = useState<{ msg: string; bad: boolean } | null>(null);
   const [dragging, setDragging] = useState(false);
   const toastTimer = useRef<number>();
@@ -69,7 +65,6 @@ function Shell() {
     reload();
     Api.Progress().then(setProgress);
     Api.GetSettings().then(setSettings);
-    Api.Info().then((i) => setVersion(i.version));
     const offs = [
       Events.On(AppEvents.LibraryReplay, (e) => {
         const ev: ReplayEvent = e.data;
@@ -128,101 +123,110 @@ function Shell() {
       return false;
     }
   };
-  const reparseStale = async () => {
-    const n = await Api.ReparseAll(true);
-    showToast(n ? `Перепарсинг: ${n}` : "Нечего перепарсивать");
+  const saveSettings = async (s: Settings) => {
+    try {
+      const saved = await Api.SaveSettings(s);
+      setSettings(saved);
+      reload();
+      return true;
+    } catch (e: any) {
+      showToast(String(e?.message ?? e), true);
+      return false;
+    }
   };
   const dlBusy = !!dl && dl.stage !== "done" && dl.stage !== "failed";
 
-  const busy = progress ? progress.pending + progress.parsing : 0;
-  const running = Object.values(parsing);
-  const runningPct = running.length ? running.reduce((a, b) => a + b, 0) / running.length : 0;
-
-  const nav: { id: string; label: string; icon: string; on: boolean; to: Route }[] = [
-    { id: "matches", label: "Матчи", icon: "list", on: route.page === "matches" || route.page === "match", to: { page: "matches" } },
-    { id: "heroes", label: "Герои", icon: "user", on: route.page === "hero", to: { page: "hero", id: 0 } },
-    { id: "dashboard", label: "Дашборд", icon: "grid", on: route.page === "dashboard", to: { page: "dashboard" } },
-    { id: "settings", label: "Настройки", icon: "sliders", on: route.page === "settings", to: { page: "settings" } },
+  const nav: { id: string; label: string; on: boolean; to: Route }[] = [
+    { id: "matches", label: "Матчи", on: route.page === "matches" || route.page === "match", to: { page: "matches" } },
+    { id: "dashboard", label: "Дашборд", on: route.page === "dashboard", to: { page: "dashboard" } },
+    { id: "heroes", label: "Герои", on: route.page === "hero", to: { page: "hero", id: 0 } },
+    { id: "import", label: "Импорт", on: route.page === "import", to: { page: "import" } },
   ];
 
   return (
-    <div
-      className="shell"
-      data-file-drop-target
-      onDragEnter={() => setDragging(true)}
-      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
-      onDrop={() => setDragging(false)}
-    >
-      <aside className="sidebar">
-        <div className="logo"><Icon name="pulse" size={20} /> drstats</div>
-        <nav>
-          {nav.map((n) => (
-            <button key={n.id} className={n.on ? "on" : ""} onClick={() => top(n.to)}>
-              <Icon name={n.icon} /> {n.label}
+    <ToastCtx.Provider value={showToast}>
+      <div
+        className="shell"
+        data-file-drop-target
+        onDragEnter={() => setDragging(true)}
+        onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
+        onDrop={() => setDragging(false)}
+      >
+        <header className="topbar">
+          <div className="logo"><Icon name="pulse" size={18} /> drstats</div>
+          <nav className="topnav">
+            {nav.map((n) => (
+              <button key={n.id} className={n.on ? "on" : ""} onClick={() => top(n.to)}>{n.label}</button>
+            ))}
+          </nav>
+          <div className="topbar-right">
+            <QueuePill progress={progress} parsing={parsing} dl={dlBusy ? dl : null} onClick={() => top({ page: "import" })} />
+            <button className={`icon-btn ${route.page === "settings" ? "on" : ""}`} title="Настройки" onClick={() => top({ page: "settings" })}>
+              <Icon name="settings" size={17} />
             </button>
-          ))}
-        </nav>
-        <div className="side-bottom">
-          {dlBusy && dl && (
-            <div className="queue-card">
-              <div className="q-title">Скачивание</div>
-              <div className="q-main">
-                {dl.stage === "lookup" ? `Ищу матч ${dl.match_id}…` : `${(dl.bytes / 1048576).toFixed(0)}${dl.total ? ` из ${(dl.total / 1048576).toFixed(0)}` : ""} МБ`}
-              </div>
-              <div className="bar thin"><div style={{ width: dl.total ? `${(dl.bytes / dl.total) * 100}%` : "15%" }} /></div>
-            </div>
-          )}
-          {progress && (
-            <div className="queue-card">
-              <div className="q-title">Очередь парсинга</div>
-              {busy > 0 ? (
-                <>
-                  <div className="q-main">
-                    {busy} {plural(busy, "реплей", "реплея", "реплеев")}{running.length > 0 && ` · ${Math.round(runningPct * 100)}%`}
-                  </div>
-                  <div className="bar thin"><div style={{ width: `${(running.length ? runningPct : 0.05) * 100}%` }} /></div>
-                </>
-              ) : (
-                <div className="q-main" style={{ marginBottom: 0 }}>
-                  Всё разобрано{progress.failed ? <span className="loss"> · ошибок {progress.failed}</span> : ""}
-                </div>
-              )}
-              {progress.stale > 0 && busy === 0 && (
-                <div className="stale">
-                  Устарели: {progress.stale}{" "}
-                  <button className="link" onClick={reparseStale}>перепарсить</button>
-                </div>
-              )}
-              {settings?.replay_dir && <div className="q-path" title={settings.replay_dir}>{shortPath(settings.replay_dir)}</div>}
-            </div>
-          )}
-          <div className="version">{version}</div>
-        </div>
-      </aside>
-      <main className="content">
-        <div className="page">
-          {route.page === "dashboard" && (
-            <DashboardPage tick={tick} onMatch={(id) => go({ page: "match", id })} onHero={(id) => go({ page: "hero", id })} />
-          )}
-          {route.page === "matches" && (
-            <MatchesPage rows={rows} settings={settings} parsing={parsing} onOpen={(id) => go({ page: "match", id })}
-              onImport={importFiles} onScan={scan} onDownload={download} downloading={dlBusy} />
-          )}
-          {route.page === "match" && (
-            <MatchPage key={route.id} matchID={route.id} lh10Goal={settings?.lh10_goal || 70} idleThreshold={settings?.idle_threshold ?? 20}
-              onBack={back} onHero={(id) => go({ page: "hero", id })} />
-          )}
-          {route.page === "hero" && (
-            <HeroPage key={route.id} heroID={route.id} tick={tick} onHero={(id) => setHistory((h) => [...h.slice(0, -1), { page: "hero", id }])}
-              onMatch={(id) => go({ page: "match", id })} />
-          )}
-          {route.page === "settings" && (
-            <SettingsPage toast={showToast} onSaved={(s) => { setSettings(s); reload(); }} />
-          )}
-        </div>
-      </main>
-      {dragging && <div className="drop-overlay">Отпусти, чтобы импортировать реплеи</div>}
-      {toast && <div className={`toast ${toast.bad ? "bad" : ""}`}>{toast.msg}</div>}
-    </div>
+          </div>
+        </header>
+        <main className="content">
+          <div className="page">
+            {route.page === "dashboard" && (
+              <DashboardPage tick={tick} onMatch={(id) => go({ page: "match", id })} onHero={(id) => go({ page: "hero", id })} />
+            )}
+            {route.page === "matches" && (
+              <MatchesPage rows={rows} settings={settings} parsing={parsing} onOpen={(id) => go({ page: "match", id })}
+                onImport={importFiles} onScan={scan} onDownload={download} downloading={dlBusy}
+                onShowImport={() => top({ page: "import" })} />
+            )}
+            {route.page === "match" && (
+              <MatchPage key={route.id} matchID={route.id} lh10Goal={settings?.lh10_goal || 70}
+                onBack={back} onHero={(id) => go({ page: "hero", id })} />
+            )}
+            {route.page === "hero" && (
+              <HeroPage key={route.id} heroID={route.id} tick={tick} onHero={(id) => setHistory((h) => [...h.slice(0, -1), { page: "hero", id }])}
+                onMatch={(id) => go({ page: "match", id })} />
+            )}
+            {route.page === "import" && (
+              <ImportPage rows={rows} parsing={parsing} progress={progress} settings={settings} onSave={saveSettings}
+                onImport={importFiles} onDownload={download} downloading={dlBusy} dl={dl} dragging={dragging}
+                onOpen={(id) => go({ page: "match", id })} />
+            )}
+            {route.page === "settings" && (
+              <SettingsPage toast={showToast} onSaved={(s) => { setSettings(s); reload(); }} />
+            )}
+          </div>
+        </main>
+        {dragging && route.page !== "import" && <div className="drop-overlay">Отпусти, чтобы импортировать реплеи</div>}
+        {toast && <div className={`toast ${toast.bad ? "bad" : ""}`}>{toast.msg}</div>}
+      </div>
+    </ToastCtx.Provider>
+  );
+}
+
+/** Top-right status: download, parse queue or "all parsed". */
+function QueuePill({ progress, parsing, dl, onClick }: {
+  progress: Progress | null; parsing: Record<number, number>; dl: DownloadProgress | null; onClick: () => void;
+}) {
+  if (!progress) return null;
+  const busy = progress.pending + progress.parsing;
+  const running = Object.values(parsing);
+  const pct = running.length ? Math.round((running.reduce((a, b) => a + b, 0) / running.length) * 100) : null;
+  let dot = "var(--win)";
+  let text = "Всё разобрано";
+  if (dl) {
+    dot = "var(--blue)";
+    text = dl.stage === "lookup" ? `Ищу матч ${dl.match_id}…` : `Скачивание · ${Math.round(dl.bytes / 1048576)}${dl.total ? ` из ${Math.round(dl.total / 1048576)}` : ""} МБ`;
+  } else if (busy > 0) {
+    dot = "var(--accent)";
+    text = `Парсинг · ${busy} ${plural(busy, "реплей", "реплея", "реплеев")}${pct != null ? ` · ${pct}%` : ""}`;
+  } else if (progress.failed > 0) {
+    dot = "var(--loss)";
+    text = `Ошибок: ${progress.failed}`;
+  } else if (progress.stale > 0) {
+    dot = "var(--warn)";
+    text = `Устарели: ${progress.stale}`;
+  }
+  return (
+    <button className="status-pill" onClick={onClick} title="Импорт и очередь">
+      <span className="dot" style={{ background: dot, boxShadow: `0 0 8px ${dot}` }} /> {text}
+    </button>
   );
 }

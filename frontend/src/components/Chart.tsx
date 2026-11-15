@@ -3,7 +3,7 @@ import type { EChartsOption } from "echarts";
 import { clock } from "../format";
 import type { Line } from "../api";
 
-export const SERIES_COLORS = { focus: "#f2a93b", team: "#9aa1af", opponent: "#4ea1f5" };
+export const SERIES_COLORS = { focus: "#ffad33", team: "#9aa1b0", opponent: "#4f9df8" };
 
 export interface ChartLine {
   name: string;
@@ -19,29 +19,29 @@ export function TimeChart({ title, t, lines, height = 260 }: {
   const option: EChartsOption = {
     backgroundColor: "transparent",
     animation: false,
-    title: { text: title, left: 8, top: 4, textStyle: { color: "#e8eaf0", fontSize: 13, fontWeight: 600 } },
+    title: { text: title, left: 8, top: 4, textStyle: { color: "#eceef3", fontSize: 13, fontWeight: 600 } },
     grid: { left: 56, right: 16, top: 40, bottom: 48 },
-    legend: { top: 4, right: 8, textStyle: { color: "#9aa1af" }, itemWidth: 16, itemHeight: 8 },
+    legend: { top: 4, right: 8, textStyle: { color: "#9aa1b0" }, itemWidth: 16, itemHeight: 8 },
     tooltip: {
       trigger: "axis",
-      backgroundColor: "#191d25",
-      borderColor: "#2d3340",
-      textStyle: { color: "#e8eaf0" },
+      backgroundColor: "#1f232c",
+      borderColor: "#2a2f3a",
+      textStyle: { color: "#eceef3" },
       valueFormatter: (v) => (v == null ? "—" : Math.round(Number(v)).toLocaleString("ru-RU")),
     },
     xAxis: {
       type: "category",
       data: t.map(clock),
       boundaryGap: false,
-      axisLine: { lineStyle: { color: "#2d3340" } },
-      axisLabel: { color: "#697080" },
+      axisLine: { lineStyle: { color: "#2a2f3a" } },
+      axisLabel: { color: "#5f6676" },
     },
     yAxis: {
       type: "value",
-      splitLine: { lineStyle: { color: "#1f232c" } },
-      axisLabel: { color: "#697080" },
+      splitLine: { lineStyle: { color: "#1a1e26" } },
+      axisLabel: { color: "#5f6676" },
     },
-    dataZoom: [{ type: "inside" }, { type: "slider", height: 16, bottom: 8, borderColor: "#2d3340", textStyle: { color: "#697080" } }],
+    dataZoom: [{ type: "inside" }, { type: "slider", height: 16, bottom: 8, borderColor: "#2a2f3a", textStyle: { color: "#5f6676" } }],
     series: lines
       .filter((l) => l.data && l.data.length > 0)
       .map((l) => ({
@@ -58,9 +58,9 @@ export function TimeChart({ title, t, lines, height = 260 }: {
 }
 
 const tooltipStyle = {
-  backgroundColor: "#191d25",
-  borderColor: "#2d3340",
-  textStyle: { color: "#e8eaf0" },
+  backgroundColor: "#1f232c",
+  borderColor: "#2a2f3a",
+  textStyle: { color: "#eceef3" },
 };
 
 export interface Bar {
@@ -80,20 +80,20 @@ export function BarChart({ title, bars, height = 260, horizontal = false, fmt, m
   const cat = {
     type: "category" as const,
     data: bars.map((b) => b.label),
-    axisLine: { lineStyle: { color: "#2d3340" } },
-    axisLabel: { color: "#9aa1af", interval: 0 },
+    axisLine: { lineStyle: { color: "#2a2f3a" } },
+    axisLabel: { color: "#9aa1b0", interval: 0 },
     inverse: horizontal,
   };
   const val = {
     type: "value" as const,
     max,
-    splitLine: { lineStyle: { color: "#1f232c" } },
-    axisLabel: { color: "#697080", formatter: (v: number) => f(v) },
+    splitLine: { lineStyle: { color: "#1a1e26" } },
+    axisLabel: { color: "#5f6676", formatter: (v: number) => f(v) },
   };
   const option: EChartsOption = {
     backgroundColor: "transparent",
     animation: false,
-    title: title ? { text: title, left: 8, top: 4, textStyle: { color: "#e8eaf0", fontSize: 13, fontWeight: 600 } } : undefined,
+    title: title ? { text: title, left: 8, top: 4, textStyle: { color: "#eceef3", fontSize: 13, fontWeight: 600 } } : undefined,
     grid: { left: horizontal ? 130 : 48, right: 24, top: title ? 36 : 12, bottom: 28 },
     tooltip: {
       trigger: "item", ...tooltipStyle,
@@ -123,12 +123,12 @@ export function TrendChart({ title, labels, values, wins, fmt, height = 260, win
   const option: EChartsOption = {
     backgroundColor: "transparent",
     animation: false,
-    title: { text: title, left: 8, top: 4, textStyle: { color: "#e8eaf0", fontSize: 13, fontWeight: 600 } },
+    title: { text: title, left: 8, top: 4, textStyle: { color: "#eceef3", fontSize: 13, fontWeight: 600 } },
     grid: { left: 56, right: 16, top: 40, bottom: 28 },
-    legend: { top: 4, right: 8, textStyle: { color: "#9aa1af" }, itemWidth: 16, itemHeight: 8 },
+    legend: { top: 4, right: 8, textStyle: { color: "#9aa1b0" }, itemWidth: 16, itemHeight: 8 },
     tooltip: { trigger: "axis", ...tooltipStyle, valueFormatter: (v) => (v == null ? "—" : fmt(Number(v))) },
-    xAxis: { type: "category", data: labels, axisLine: { lineStyle: { color: "#2d3340" } }, axisLabel: { color: "#697080" } },
-    yAxis: { type: "value", splitLine: { lineStyle: { color: "#1f232c" } }, axisLabel: { color: "#697080", formatter: (v: number) => fmt(v) } },
+    xAxis: { type: "category", data: labels, axisLine: { lineStyle: { color: "#2a2f3a" } }, axisLabel: { color: "#5f6676" } },
+    yAxis: { type: "value", splitLine: { lineStyle: { color: "#1a1e26" } }, axisLabel: { color: "#5f6676", formatter: (v: number) => fmt(v) } },
     series: [
       {
         name: "Матч", type: "bar", barMaxWidth: 14,
@@ -144,8 +144,8 @@ export function TrendChart({ title, labels, values, wins, fmt, height = 260, win
 }
 
 /** Me vs lane opponent over game time (minutes on a value axis), mockup style. */
-export function VersusChart({ t, me, opp, oppName = "Оппонент", height = 220 }: {
-  t: number[]; me: Line; opp?: Line; oppName?: string; height?: number;
+export function VersusChart({ t, me, opp, oppName = "Оппонент", height = 220, unit = "" }: {
+  t: number[]; me: Line; opp?: Line; oppName?: string; height?: number; unit?: string;
 }) {
   const pts = (l: Line | undefined) =>
     (l ?? []).map((v, i) => [t[i] / 60, v] as [number, number | null]).filter((p) => p[0] >= 0 && p[1] != null);
@@ -157,7 +157,7 @@ export function VersusChart({ t, me, opp, oppName = "Оппонент", height =
     grid: { left: 40, right: 12, top: 12, bottom: 24 },
     tooltip: {
       trigger: "axis", ...tooltipStyle,
-      axisPointer: { lineStyle: { color: "#2d3340" } },
+      axisPointer: { lineStyle: { color: "#2a2f3a" } },
       formatter: (ps: any) => {
         const arr = Array.isArray(ps) ? ps : [ps];
         const head = arr.length ? clock(arr[0].value[0] * 60) : "";
@@ -167,23 +167,27 @@ export function VersusChart({ t, me, opp, oppName = "Оппонент", height =
     xAxis: {
       type: "value", min: 0, max: (v) => Math.ceil(v.max),
       axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false },
-      axisLabel: { color: "#697080", fontFamily: "monospace", fontSize: 10, formatter: (v: number) => (v % 10 === 0 ? String(v) : "") },
+      axisLabel: { color: "#5f6676", fontFamily: "monospace", fontSize: 10, formatter: (v: number) => (v % 10 === 0 ? String(v) : "") },
+      name: unit, nameLocation: "end", nameTextStyle: { color: "#5f6676", fontSize: 10, fontFamily: "monospace" },
       interval: 10,
     },
     yAxis: {
       type: "value", splitNumber: 4,
-      splitLine: { lineStyle: { color: "#1f232c" } },
-      axisLabel: { color: "#697080", fontFamily: "monospace", fontSize: 10, formatter: (v: number) => (v >= 1000 ? `${v / 1000}k` : String(v)) },
+      splitLine: { lineStyle: { color: "#1a1e26" } },
+      axisLabel: { color: "#5f6676", fontFamily: "monospace", fontSize: 10, formatter: (v: number) => (v >= 1000 ? `${v / 1000}k` : String(v)) },
     },
     series: [
       {
         name: "Ты", type: "line", data: mine, showSymbol: false, smooth: 0.2,
-        lineStyle: { color: SERIES_COLORS.focus, width: 2 }, itemStyle: { color: SERIES_COLORS.focus },
-        markPoint: last ? { symbol: "circle", symbolSize: 7, data: [{ name: "end", coord: last as any }], itemStyle: { color: SERIES_COLORS.focus }, label: { show: false } } : undefined,
+        lineStyle: { color: SERIES_COLORS.focus, width: 2.5 }, itemStyle: { color: SERIES_COLORS.focus },
+        areaStyle: {
+          color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "rgba(255,173,51,.22)" }, { offset: 1, color: "rgba(255,173,51,.02)" }] },
+        },
+        markPoint: last ? { symbol: "circle", symbolSize: 12, data: [{ name: "end", coord: last as any }], itemStyle: { color: SERIES_COLORS.focus }, label: { show: false } } : undefined,
       },
       ...(opp ? [{
         name: oppName, type: "line" as const, data: pts(opp), showSymbol: false, smooth: 0.2,
-        lineStyle: { color: "#9aa1af", width: 1.5, type: "dashed" as const }, itemStyle: { color: "#9aa1af" },
+        lineStyle: { color: "#9aa1b0", width: 1.5, type: "dashed" as const }, itemStyle: { color: "#9aa1b0" },
       }] : []),
     ],
   };
