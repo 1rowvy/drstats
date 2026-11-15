@@ -13,14 +13,14 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | Charts | ECharts (`echarts-for-react`) | Handles big time series, zoom, many series. |
 | Heatmaps / map | raw `<canvas>` | spec |
 | Hero/item/ability names | OpenDota constants (`odota/dotaconstants` JSON), cached in SQLite/app data dir, refresh button | spec |
-| Auto-update | Wails v3 updater, GitHub Releases provider; CI builds on tag `v*` | One user, two machines — new build lands on both automatically. |
+| Auto-update | Wails v3 updater, GitHub Releases provider; CI builds on tag `v*` | One user, two machines — new build lands on both automatically. Repo is **public** so the updater needs no token. |
 | Replay download | OpenDota `/matches/{id}` → `cluster` + `replay_salt` → `replay{cluster}.valve.net/570/{id}_{salt}.dem.bz2`. **The file is currently zstd despite the `.bz2` name** — detect by magic bytes, support both. 404 → "Valve already deleted this replay". | found during spike |
 
 ## Phases
 
 ### Phase 0 — bootstrap
 - [x] `CLAUDE.md`, `PLAN.md`, `.gitignore` (testdata ignored)
-- [ ] GitHub repo + push
+- [x] GitHub repo `1rowvy/drstats` (public) + push
 
 ### Phase 1 — spike (`cmd/dump`)
 - [ ] `cmd/dump <file.dem>` → JSON: match info & players, every combat log type with samples,
