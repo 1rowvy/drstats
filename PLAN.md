@@ -47,6 +47,8 @@ games on any hero — per match and aggregated. Working name `drstats`.
 | OpenDota match history | `/players/{account}/matches?significant=0` (projected basic fields: hero, result, K/D/A, LH/DN, GPM/XPM, hero/tower damage, healing, lane, party, mode) stored in `od_history`; full fetch first, then `date=<days since last sync + 1>`; synced on start (if older than 1 h), on Steam ID change and on demand; off with the OpenDota switch. Dashboard source «Все игры» merges it with replays (replay row wins for the same match); replay-only metrics (LH@10, wards, stacks, deaths map, fastest items, …) stay computed over replays only. Hero page stays on replays. Empty history → hint about «Expose Public Match Data» | Owner: dashboard over replays only is a biased sample (2026-11-16). |
 | Auto-download | setting `auto_download` (off by default): matches of the OpenDota history from the last 15 days without a replay are downloaded one by one into `<data dir>/replays/auto` and parsed by the normal queue; outcomes in `auto_downloads` (expired / notfound are final; no salt → OpenDota parse requested, retry after 1 h; errors retry after 1 h). Runs after each history sync and every 30 min | Owner (2026-11-16): a replay is ~50–100 MB, the parsed match ~1.5 MB. |
 | Replay storage cap | `replay_keep`: `cap` (default, `replay_cap_gb` = 5) / `delete` (right after parsing) / `all`. Applies **only** to `<data dir>/replays/auto`, never to the Dota folder or manual downloads; only parsed replays are removed, oldest match first; `replays.pruned_at` marks them, re-parse skips them | Owner chose the cap. A pruned match keeps its data but cannot be re-parsed by a newer parser. |
+| Installers | Windows: per-user NSIS (`%LOCALAPPDATA%\Programs\drstats`, no UAC, ru/en) so the updater can replace the exe; Linux: tarball with `install.sh` into `~/.local` (no rpm/deb: a root-owned binary would break self-update). Both named `*-installer.*`, which the updater's asset matcher skips; the updater archives keep exactly one top-level entry | Owner asked for an installer (2026-11-16). |
+| Autostart | Wails `Autostart` (HKCU Run / XDG autostart), id `drstats`, flag `--autostart` → window starts minimised; single instance (`io.github.drstats`) focuses the running window; GTK app id `io.github.drstats` matches the Linux .desktop file | No tray: minimised window is visible and needs no extra platform code. |
 | Folder watching | poll the replay folder every 20 s, files must be ≥15 s old (Dota may still be writing); setting `watch_off` | Mockup «Слежу за папкой / Парсить новые сразу»; polling is portable and cheap. |
 | Import stages | the queue shows percent only, not header/entities/combat-log stages | Progress is measured by bytes read; manta has no stage hooks. |
 | Per-replay parse progress | bytes read from the .dem, `library:parsing` event, ≥2% steps | Cheap and monotonic; no manta hook needed. |
@@ -118,3 +120,8 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Store: `auto_downloads`, `replays.pruned_at`, missing-replay query; re-parse skips pruned
 - [x] Downloader worker + storage cap pruning, settings
 - [x] UI: settings and state on the Import page, pruned mark in the queue
+
+### Packaging
+- [x] App icon
+- [x] Start at login, single instance
+- [x] Windows / Linux installers in releases
