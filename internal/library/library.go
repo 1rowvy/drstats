@@ -3,6 +3,7 @@
 package library
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -271,7 +272,14 @@ func IsReplay(path string) bool {
 // Import registers files and/or directories (walked recursively) and queues
 // new or changed replays. It returns how many replays were queued.
 func (l *Library) Import(paths []string) (int, error) {
+	return l.importPaths(paths, 0)
+}
+
+// importPaths is Import that skips files modified less than minAge ago
+// (a replay Dota is still writing).
+func (l *Library) importPaths(paths []string, minAge time.Duration) (int, error) {
 	queued := 0
+	fresh := func(info fs.FileInfo) bool { return minAge > 0 && time.Since(info.ModTime()) < minAge }
 	var errs []error
 	for _, p := range paths {
 		st, err := os.Stat(p)
@@ -296,7 +304,7 @@ func (l *Library) Import(paths []string) (int, error) {
 				return nil // unreadable subfolders are skipped, not fatal
 			}
 			info, err := d.Info()
-			if err != nil {
+			if err != nil || fresh(info) {
 				return nil
 			}
 			n, err := l.add(path, info)
@@ -326,6 +334,35 @@ func (l *Library) Scan(dir string) (int, error) {
 		return 0, nil
 	}
 	return l.Import([]string{dir})
+}
+
+// WatchSettle is how old a replay file must be before the watcher picks it up.
+const WatchSettle = 15 * time.Second
+
+// Watch rescans the replay folder every interval while enabled() is true,
+// queueing replays that appeared since. It returns when ctx is done.
+func (l *Library) Watch(ctx context.Context, interval time.Duration, dir func() string, enabled func() bool) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		d := dir()
+		if !enabled() || d == "" {
+			continue
+		}
+		if _, err := os.Stat(d); err != nil {
+			continue
+		}
+		if n, err := l.importPaths([]string{d}, WatchSettle); err != nil {
+			slog.Warn("watch replay folder", "dir", d, "err", err)
+		} else if n > 0 {
+			slog.Info("new replays in folder", "dir", d, "queued", n)
+		}
+	}
 }
 
 func (l *Library) add(path string, info fs.FileInfo) (int, error) {

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
@@ -104,6 +105,7 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 	if err := a.lib.Start(a.cfg.Parallelism); err != nil {
 		return err
 	}
+	go a.lib.Watch(bg, 20*time.Second, func() string { return a.settings().ReplayDir }, func() bool { return !a.settings().WatchOff })
 	go func() {
 		n, err := a.lib.Scan(a.cfg.ReplayDir)
 		if err != nil {
@@ -257,9 +259,19 @@ func (a *App) MapImage() string {
 // ListMatches returns all replays with summaries for "me".
 func (a *App) ListMatches() ([]store.MatchRow, error) {
 	rows, err := a.st.ListMatches(a.accountID())
+	if err != nil {
+		return nil, err
+	}
+	grades, err := stats.MatchGrades(a.st, a.accountID())
+	if err != nil {
+		return nil, err
+	}
 	for i := range rows {
 		rows[i].Lane = stats.DetectLane(rows[i].LaneEarly)
 		rows[i].LaneEarly = nil
+		if g, ok := grades[rows[i].MatchID]; ok && rows[i].Found {
+			rows[i].Grade, rows[i].GradeScore = g.Letter, g.Score
+		}
 	}
 	if rows == nil {
 		rows = []store.MatchRow{}

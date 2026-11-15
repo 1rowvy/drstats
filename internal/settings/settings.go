@@ -28,6 +28,9 @@ type Settings struct {
 	// OpenDotaOff disables fetching per-match extras (positions, ranks,
 	// benchmarks) from OpenDota. Off by default = fetching enabled.
 	OpenDotaOff bool `json:"opendota_off"`
+	// WatchOff stops watching the replay folder for new files (parsed as
+	// soon as they appear). Off by default = watching.
+	WatchOff bool `json:"watch_off"`
 	// MapImage is an optional user-supplied minimap background (png/jpg).
 	MapImage string `json:"map_image"`
 }
