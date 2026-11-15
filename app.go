@@ -229,6 +229,12 @@ func (a *App) Match(matchID int64, focus int) (*stats.MatchView, error) {
 	return stats.BuildMatchView(a.st, matchID, a.accountID(), focus, stats.Options{HitWindow: cfg.HitWindowSec, IdleThreshold: cfg.IdleThreshold})
 }
 
+// Dashboard returns aggregates over "my" matches under a filter (hero page:
+// filter by hero).
+func (a *App) Dashboard(f stats.Filter) (*stats.Dashboard, error) {
+	return stats.BuildDashboard(a.st, a.accountID(), f)
+}
+
 // Progress returns the parse queue state.
 func (a *App) Progress() library.Progress { return a.lib.Progress() }
 

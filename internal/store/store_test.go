@@ -138,3 +138,30 @@ func TestSettings(t *testing.T) {
 		t.Fatalf("%v %v %v", ok, err, v)
 	}
 }
+
+func TestAggregateQueries(t *testing.T) {
+	s := openTemp(t)
+	id, _, _ := s.AddReplay("/r/42.dem", 10, 1)
+	m := sampleMatch()
+	m.Series = append(m.Series, parser.Sample{T: 600, PlayerID: 0, Alive: true, LastHits: 55, NetWorth: 4000})
+	if _, err := s.SaveMatch(id, m); err != nil {
+		t.Fatal(err)
+	}
+	games, err := s.Games(100)
+	if err != nil || len(games) != 1 {
+		t.Fatalf("games: %+v %v", games, err)
+	}
+	g := games[0]
+	if g.HeroID != 1 || g.TeamKills != 3 || g.LH10 == nil || *g.LH10 != 55 || g.Deaths10 != 1 || len(g.LaneEarly) != 1 {
+		t.Errorf("game row: %+v", g)
+	}
+	if d, _ := s.DeathPoints(200, 0); len(d) != 1 || d[0].X != 1 {
+		t.Errorf("death points: %+v", d)
+	}
+	if it, _ := s.ItemTimings(100, 1, 0); len(it) != 1 || it[0].Item != "blink" || it[0].Avg != 30 {
+		t.Errorf("item timings: %+v", it)
+	}
+	if ab, _ := s.AbilityCasts(100, 1); len(ab) != 1 || ab[0].Casts != 1 {
+		t.Errorf("ability casts: %+v", ab)
+	}
+}
