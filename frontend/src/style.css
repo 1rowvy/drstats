@@ -553,3 +553,6 @@ details.more summary:hover { color: var(--text); }
 .phase-notes li::before { content: ""; position: absolute; left: 0; top: 6px; width: 8px; height: 8px; border-radius: 50%; }
 .phase-notes li.good::before { background: var(--win); }
 .phase-notes li.bad::before { background: var(--loss); }
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
+.pager .chips { align-items: center; }
+.pager .chip { min-width: 32px; }

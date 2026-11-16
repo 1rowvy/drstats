@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Api, MatchRow, Settings } from "../api";
 import { baseName, duration, gradeTone, modeShort, plural, relDate, roleName, signed } from "../format";
 import { useNames } from "../names";
@@ -7,6 +7,10 @@ import { Icon } from "../components/Icon";
 import { ResultPill, Stat } from "../components/ui";
 
 type Result = "" | "win" | "loss";
+
+const PAGE_SIZE = 20;
+// The page survives leaving the list (opening a match and coming back).
+let savedPage = 0;
 
 const won = (r: MatchRow) => (r.found && r.winner !== 0 ? r.winner === r.team : null);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
@@ -21,6 +25,10 @@ export function MatchesPage({ rows, settings, parsing, onOpen, onImport, onScan,
   const [hero, setHero] = useState(0);
   const [mode, setMode] = useState("");
   const [result, setResult] = useState<Result>("");
+  const [page, setPageState] = useState(savedPage);
+  const setPage = (n: number) => { savedPage = n; setPageState(n); };
+  const filterKey = useRef("");
+  const listRef = useRef<HTMLDivElement>(null);
 
   const mine = useMemo(() => rows.filter((r) => r.found && r.status === "done"), [rows]);
   const heroes = useMemo(() => {
@@ -45,6 +53,19 @@ export function MatchesPage({ rows, settings, parsing, onOpen, onImport, onScan,
     }
     return true;
   }), [rows, hero, mode, result, query, names]);
+
+  // Pagination: back to the first page when the filters change; clamp when the list shrinks.
+  useEffect(() => {
+    const key = JSON.stringify([hero, mode, result, query]);
+    if (filterKey.current && filterKey.current !== key) setPage(0);
+    filterKey.current = key;
+  }, [hero, mode, result, query]);
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  const cur = Math.min(page, pages - 1);
+  const goPage = (n: number) => {
+    setPage(n);
+    listRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
 
   const idQuery = /^\d{6,}$/.test(q.trim()) ? q.trim() : "";
   const idMissing = idQuery && !rows.some((r) => String(r.match_id) === idQuery);
@@ -103,9 +124,10 @@ export function MatchesPage({ rows, settings, parsing, onOpen, onImport, onScan,
           Реплеев пока нет. Перетащи <code>.dem</code> файлы в окно, нажми «Импорт реплея» или проверь папку реплеев на странице «Импорт».
         </div>
       ) : (
-        <div className="match-list">
-          {shown.map((r) => <Row key={r.replay_id} r={r} parsing={parsing[r.replay_id]} onOpen={onOpen} onShowImport={onShowImport} />)}
+        <div className="match-list" ref={listRef}>
+          {shown.slice(cur * PAGE_SIZE, (cur + 1) * PAGE_SIZE).map((r) => <Row key={r.replay_id} r={r} parsing={parsing[r.replay_id]} onOpen={onOpen} onShowImport={onShowImport} />)}
           {shown.length === 0 && <div className="card empty">Под фильтр ничего не попало.</div>}
+          <Pager page={cur} pages={pages} total={shown.length} onPage={goPage} />
         </div>
       )}
     </div>
@@ -204,6 +226,29 @@ function Row({ r, parsing, onOpen, onShowImport }: {
       ) : (
         <div className="wide dim small">Тебя нет в этом матче — можно разобрать за любого игрока.</div>
       )}
+    </div>
+  );
+}
+
+/** Page switcher: ‹ 1 … 4 5 6 … 12 › with the shown range. */
+function Pager({ page, pages, total, onPage }: { page: number; pages: number; total: number; onPage: (n: number) => void }) {
+  if (pages <= 1) return null;
+  const nums: (number | "…")[] = [];
+  for (let i = 0; i < pages; i++) {
+    if (i === 0 || i === pages - 1 || Math.abs(i - page) <= 1) nums.push(i);
+    else if (nums[nums.length - 1] !== "…") nums.push("…");
+  }
+  const from = page * PAGE_SIZE + 1, to = Math.min(total, (page + 1) * PAGE_SIZE);
+  return (
+    <div className="pager">
+      <span className="dim small">{from}–{to} из {total}</span>
+      <div className="chips">
+        <button className="chip" disabled={page === 0} onClick={() => onPage(page - 1)}>‹</button>
+        {nums.map((n, i) => n === "…"
+          ? <span key={`e${i}`} className="faint">…</span>
+          : <button key={n} className={`chip ${n === page ? "on" : ""}`} onClick={() => onPage(n)}>{n + 1}</button>)}
+        <button className="chip" disabled={page === pages - 1} onClick={() => onPage(page + 1)}>›</button>
+      </div>
     </div>
   );
 }
