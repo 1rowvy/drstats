@@ -25,6 +25,7 @@ func TestAnalyzeSmokes(t *testing.T) {
 		{T: 700, VictimPID: 6, KillerPID: 0, Assists: []int{}},   // too late for smoke 1
 		{T: 1250, VictimPID: 0, KillerPID: 5, Assists: []int{6}}, // enemy smoke 2 catches 0
 		{T: 1255, VictimPID: 1, KillerPID: 6, Assists: []int{}},
+		{T: 1510, VictimPID: 0, KillerPID: -1, Assists: []int{}}, // 0 dies elsewhere during 2's smoke
 	}
 	objs := []parser.Objective{{T: 1560, Kind: "tower", Key: "npc_dota_badguys_tower2_top", Team: 3, KillerPID: 2}}
 	got := analyzeSmokes(smokes, deaths, objs, teams, 0)
@@ -39,7 +40,7 @@ func TestAnalyzeSmokes(t *testing.T) {
 	if s2.Mine || !s2.Enemy || !s2.Died || s2.Result != SmokeKill || len(s2.Kills) != 2 {
 		t.Errorf("smoke 2: %+v", s2)
 	}
-	if s3.Mine || s3.Enemy || s3.Result != SmokeObjective || s3.Objective == "" {
+	if s3.Mine || s3.Enemy || s3.Died || s3.Result != SmokeObjective || s3.Objective == "" {
 		t.Errorf("smoke 3: %+v", s3)
 	}
 

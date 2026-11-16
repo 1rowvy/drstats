@@ -116,7 +116,8 @@ func analyzeSmokes(smokes []parser.Smoke, deaths []parser.Death, objs []parser.O
 					}
 				}
 			}
-			if d.VictimPID == focus && focus >= 0 {
+			// Your death counts for a smoke you were under, or an enemy one that killed you.
+			if d.VictimPID == focus && focus >= 0 && (member[focus] || v.Enemy) {
 				v.Died = true
 			}
 		}
