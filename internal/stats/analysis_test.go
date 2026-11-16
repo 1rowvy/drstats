@@ -1,6 +1,9 @@
 package stats
 
 import (
+	"os"
+
+	"github.com/1rowvy/drstats/internal/constants"
 	"path/filepath"
 	"testing"
 
@@ -137,6 +140,37 @@ func TestMatchViewOnReplay(t *testing.T) {
 			t.Errorf("%s: battles %d, kills %d of %d", p.HeroName, len(v.Battles), kills, p.Kills)
 		}
 	}
+	// Fight play of every player (key spells need the OpenDota constants
+	// saved as testdata/constants.{abilities,items}.json).
+	ab, _ := os.ReadFile(filepath.Join("..", "..", "testdata", "constants.abilities.json"))
+	it, _ := os.ReadFile(filepath.Join("..", "..", "testdata", "constants.items.json"))
+	cds, err := constants.DecodeCooldowns(ab, it)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opt := DefaultOptions
+	opt.Cooldowns = cds
+	for _, p := range m.Players {
+		v, _ := BuildMatchView(st, mid, 0, p.PlayerID, opt)
+		var late, wasted, started int
+		for _, b := range v.Battles {
+			if b.Play.Late {
+				late++
+			}
+			if b.MyDied && len(b.Play.KeyUnused) > 0 {
+				wasted++
+				t.Logf("    %s %0.f: died with %v unused (used %v)", p.HeroName, b.Start, b.Play.KeyUnused, b.Play.KeyUsed)
+			}
+			if b.Play.WeStarted {
+				started++
+			}
+			if b.Play.Initiator < 0 {
+				t.Errorf("%s fight at %.0f: no initiator", p.HeroName, b.Start)
+			}
+		}
+		t.Logf("%-30s fights %d, we started %d, late %d, died with key spells unused %d", p.HeroName, len(v.Battles), started, late, wasted)
+	}
+
 	// Stored-death classification matches the one of the match view.
 	for _, p := range m.Players {
 		if p.AccountID == 0 {

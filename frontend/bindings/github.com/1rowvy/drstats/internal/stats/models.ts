@@ -120,6 +120,11 @@ export interface Battle {
      * Deaths are indexes into MatchView.Deaths.
      */
     "deaths": number[] | null;
+
+    /**
+     * Play: who started, when I joined, key spells used / wasted.
+     */
+    "play": FightPlay;
 }
 
 /**
@@ -501,6 +506,51 @@ export interface FightHero {
     "pid": number;
     "dealt": number;
     "taken": number;
+}
+
+/**
+ * FightPlay is how the focused player played one fight.
+ */
+export interface FightPlay {
+    /**
+     * Who opened the fight: the first ability hit on a hero (else the
+     * biggest damage dealer of the opening bucket); -1 when unknown.
+     */
+    "initiator": number;
+
+    /**
+     * "" = autoattacks / unknown
+     */
+    "init_ability": string;
+    "we_started": boolean;
+
+    /**
+     * FirstTarget took the most damage in the opening 5 s; -1 unknown.
+     */
+    "first_target": number;
+
+    /**
+     * MyEntry: seconds from the start to my first damage; nil = none.
+     */
+    "my_entry": number | null;
+
+    /**
+     * my distance to the fight when it started
+     */
+    "my_dist": number;
+    "late": boolean;
+
+    /**
+     * Key spells (ultimates, saving items): used in the fight, and ready
+     * but not used before I died (or by the end of the fight).
+     */
+    "key_used": string[] | null;
+    "key_unused": string[] | null;
+
+    /**
+     * DeathAfter: seconds from the start to my death in this fight; nil = survived.
+     */
+    "death_after": number | null;
 }
 
 /**

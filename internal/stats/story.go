@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 
+	"github.com/1rowvy/drstats/internal/constants"
 	"github.com/1rowvy/drstats/internal/parser"
 )
 
@@ -95,6 +96,8 @@ type Battle struct {
 	Heroes    []FightHero `json:"heroes"`
 	// Deaths are indexes into MatchView.Deaths.
 	Deaths []int `json:"deaths"`
+	// Play: who started, when I joined, key spells used / wasted.
+	Play FightPlay `json:"play"`
 }
 
 type span struct{ from, to float64 }
@@ -127,7 +130,8 @@ func fightSpans(m *parser.Match) []span {
 	return out
 }
 
-func buildBattles(m *parser.Match, players []parser.Player, byPID map[int][]parser.Sample, focus int, clock *parser.Clock) []Battle {
+func buildBattles(m *parser.Match, players []parser.Player, byPID map[int][]parser.Sample, focus int, clock *parser.Clock,
+	cds map[string]constants.Cooldown) []Battle {
 	out := []Battle{}
 	team := teamOf(players, focus)
 	if team == 0 {
@@ -234,6 +238,7 @@ func buildBattles(m *parser.Match, players []parser.Player, byPID map[int][]pars
 			b.X, b.Y = s.X, s.Y
 		}
 		b.Region = Region(b.X, b.Y)
+		b.Play = fightPlay(m, &b, sp.from, sp.to, players, byPID, focus, cds)
 		before, ok1 := teamNW(snap(sp.from - parser.SeriesStep))
 		after, ok2 := teamNW(snap(sp.to + 2*parser.SeriesStep))
 		if ok1 && ok2 {

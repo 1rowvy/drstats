@@ -354,7 +354,11 @@ func (a *App) ListMatches() ([]store.MatchRow, error) {
 // Match returns the match page data; focus < 0 means "me".
 func (a *App) Match(matchID int64, focus int) (*stats.MatchView, error) {
 	cfg := a.settings()
-	return stats.BuildMatchView(a.st, matchID, a.accountID(), focus, stats.Options{HitWindow: cfg.HitWindowSec, IdleThreshold: cfg.IdleThreshold})
+	opt := stats.Options{HitWindow: cfg.HitWindowSec, IdleThreshold: cfg.IdleThreshold}
+	if n, err := a.names.Names(); err == nil {
+		opt.Cooldowns = n.Cooldowns
+	}
+	return stats.BuildMatchView(a.st, matchID, a.accountID(), focus, opt)
 }
 
 // Plan returns the weekly plan with its progress (no plan: Plan is nil).

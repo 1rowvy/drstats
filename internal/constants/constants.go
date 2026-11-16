@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +44,16 @@ type Names struct {
 	Items     map[string]Item   `json:"items"`      // by key without "item_" prefix
 	Abilities map[string]string `json:"abilities"`  // by ability key -> display name
 	FetchedAt int64             `json:"fetched_at"` // unix, oldest of the sets; 0 if any missing
+	// Cooldowns of abilities and active items (items as "item_<key>"), for
+	// the fight analysis; not sent to the frontend.
+	Cooldowns map[string]Cooldown `json:"-"`
+}
+
+// Cooldown of an ability or item, seconds.
+type Cooldown struct {
+	Max    float64 // longest (lowest level)
+	Levels int     // number of cooldown values (3 = ultimate-like)
+	Item   bool
 }
 
 // Service loads constants from the cache and refreshes them from OpenDota.
@@ -128,7 +140,8 @@ func (s *Service) fetch(ctx context.Context, set string) ([]byte, error) {
 }
 
 func (s *Service) decode() (*Names, error) {
-	n := &Names{Heroes: map[string]Hero{}, HeroByID: map[int]string{}, Items: map[string]Item{}, Abilities: map[string]string{}}
+	n := &Names{Heroes: map[string]Hero{}, HeroByID: map[int]string{}, Items: map[string]Item{}, Abilities: map[string]string{},
+		Cooldowns: map[string]Cooldown{}}
 	var oldest time.Time
 	missing := false
 	load := func(set string, v any) error {
@@ -161,18 +174,23 @@ func (s *Service) decode() (*Names, error) {
 	}
 
 	var items map[string]struct {
-		DName string `json:"dname"`
-		Cost  int    `json:"cost"`
+		DName string          `json:"dname"`
+		Cost  int             `json:"cost"`
+		CD    json.RawMessage `json:"cd"`
 	}
 	if err := load("items", &items); err != nil {
 		return nil, fmt.Errorf("items: %w", err)
 	}
 	for k, it := range items {
 		n.Items[k] = Item{Name: it.DName, Cost: it.Cost}
+		if mx, lv := parseCD(it.CD); mx > 0 {
+			n.Cooldowns["item_"+k] = Cooldown{Max: mx, Levels: lv, Item: true}
+		}
 	}
 
 	var abilities map[string]struct {
-		DName string `json:"dname"`
+		DName string          `json:"dname"`
+		CD    json.RawMessage `json:"cd"`
 	}
 	if err := load("abilities", &abilities); err != nil {
 		return nil, fmt.Errorf("abilities: %w", err)
@@ -181,11 +199,74 @@ func (s *Service) decode() (*Names, error) {
 		if a.DName != "" {
 			n.Abilities[k] = a.DName
 		}
+		if mx, lv := parseCD(a.CD); mx > 0 {
+			n.Cooldowns[k] = Cooldown{Max: mx, Levels: lv}
+		}
 	}
 	if !missing {
 		n.FetchedAt = oldest.Unix()
 	}
 	return n, nil
+}
+
+// DecodeCooldowns reads the cooldowns from raw OpenDota "abilities" and
+// "items" sets (either may be nil).
+func DecodeCooldowns(abilities, items []byte) (map[string]Cooldown, error) {
+	out := map[string]Cooldown{}
+	var raw map[string]struct {
+		CD json.RawMessage `json:"cd"`
+	}
+	if abilities != nil {
+		if err := json.Unmarshal(abilities, &raw); err != nil {
+			return nil, err
+		}
+		for k, a := range raw {
+			if mx, lv := parseCD(a.CD); mx > 0 {
+				out[k] = Cooldown{Max: mx, Levels: lv}
+			}
+		}
+	}
+	if items != nil {
+		raw = nil
+		if err := json.Unmarshal(items, &raw); err != nil {
+			return nil, err
+		}
+		for k, it := range raw {
+			if mx, lv := parseCD(it.CD); mx > 0 {
+				out["item_"+k] = Cooldown{Max: mx, Levels: lv, Item: true}
+			}
+		}
+	}
+	return out, nil
+}
+
+// parseCD reads an OpenDota "cd" value: a number, a string ("120" or
+// "50 40 30") or an array of either. Returns the longest value and the
+// number of values; 0 when absent.
+func parseCD(raw json.RawMessage) (float64, int) {
+	if len(raw) == 0 {
+		return 0, 0
+	}
+	var vals []string
+	var arr []json.RawMessage
+	if json.Unmarshal(raw, &arr) == nil {
+		for _, a := range arr {
+			vals = append(vals, strings.Trim(string(a), `"`))
+		}
+	} else {
+		vals = strings.Fields(strings.Trim(string(raw), `"`))
+	}
+	var mx float64
+	n := 0
+	for _, v := range vals {
+		f, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err != nil {
+			continue
+		}
+		n++
+		mx = math.Max(mx, f)
+	}
+	return mx, n
 }
 
 // HeroDisplay returns the localized hero name, falling back to a prettified

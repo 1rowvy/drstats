@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"github.com/1rowvy/drstats/internal/constants"
 	"math"
 	"sort"
 	"strings"
@@ -12,6 +13,9 @@ import (
 type Options struct {
 	HitWindow     float64 // seconds after a cast in which damage/debuff counts as a hit
 	IdleThreshold float64 // seconds without farm or fight that count as idle
+	// Cooldowns of abilities / items (OpenDota constants) for the fight
+	// analysis; nil = no key-spell checks.
+	Cooldowns map[string]constants.Cooldown
 }
 
 // DefaultOptions mirror the settings defaults.

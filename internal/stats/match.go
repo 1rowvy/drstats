@@ -179,7 +179,7 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 	v.Fights = buildFights(m, me)
 	v.Abilities = buildAbilities(m, v.Focus, opt)
 	v.Vision = buildVision(m, me, ss, v.Laning.Lane)
-	v.Battles = buildBattles(m, players, byPID, v.Focus, clock)
+	v.Battles = buildBattles(m, players, byPID, v.Focus, clock, opt.Cooldowns)
 	flow := matchFlow(players, ss, deaths, v.Farm, me)
 	v.Phases = GamePhases(flow, meta.Duration)
 	g := Game{GameRow: store.GameRow{MatchID: matchID, EndTime: meta.EndTime, Duration: meta.Duration,

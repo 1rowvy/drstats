@@ -56,3 +56,16 @@ func TestRefreshAndDecode(t *testing.T) {
 		t.Error("abilities without a display name must be dropped")
 	}
 }
+
+func TestParseCD(t *testing.T) {
+	for _, c := range []struct {
+		in  string
+		max float64
+		n   int
+	}{{`95`, 95, 1}, {`"120"`, 120, 1}, {`["50","40","30"]`, 50, 3}, {`"24 20 16 12"`, 24, 4}, {`[10, 8]`, 10, 2}, {``, 0, 0}, {`false`, 0, 0}} {
+		mx, n := parseCD([]byte(c.in))
+		if mx != c.max || n != c.n {
+			t.Errorf("parseCD(%s) = %v %d, want %v %d", c.in, mx, n, c.max, c.n)
+		}
+	}
+}

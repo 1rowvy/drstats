@@ -18,6 +18,7 @@ export type {
     FarmStats,
     FastItemView,
     FightHero,
+    FightPlay,
     Fights,
     Filter,
     FlowStats,
