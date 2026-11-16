@@ -217,6 +217,11 @@ export interface Dashboard {
     "lanes": LaneStats;
 
     /**
+     * phases, thrown / comeback games, game length
+     */
+    "flow": FlowStats;
+
+    /**
      * Replays is how many of the filtered matches have a parsed replay
      * (replay-only blocks are computed over those).
      */
@@ -419,6 +424,44 @@ export interface Filter {
      * SourceReplays / SourceAll
      */
     "source": string;
+}
+
+/**
+ * FlowStats summarise how games develop after the lane.
+ */
+export interface FlowStats {
+    /**
+     * games with a parsed replay
+     */
+    "games": number;
+    "phases": PhaseStats[] | null;
+
+    /**
+     * Games with a lead of ThrowLead+ / a deficit of ThrowLead+ and how they ended.
+     */
+    "ahead": Bucket;
+    "behind": Bucket;
+
+    /**
+     * newest first, up to FlowListLen
+     */
+    "thrown": SwingGame[] | null;
+
+    /**
+     * newest first, up to FlowListLen
+     */
+    "comebacks": SwingGame[] | null;
+
+    /**
+     * Thrown-game averages of your play during the collapse.
+     */
+    "throw_deaths": number;
+    "throw_kp": number;
+
+    /**
+     * Winrate by game length (all games, history included). Key: lower bound in minutes.
+     */
+    "by_length": Bucket[] | null;
 }
 
 /**
@@ -923,6 +966,50 @@ export interface ObjectiveView {
 }
 
 /**
+ * PhaseStats are the averages of one game phase over the games that reached it.
+ */
+export interface PhaseStats {
+    /**
+     * lane / mid / late
+     */
+    "key": string;
+    "games": number;
+    "gpm": number;
+    "xpm": number;
+
+    /**
+     * last hits per minute
+     */
+    "lhpm": number;
+
+    /**
+     * deaths per 10 minutes
+     */
+    "deaths10": number;
+
+    /**
+     * share of the team's kills with your kill or assist
+     */
+    "kp": number;
+
+    /**
+     * average change of the team lead during the phase
+     */
+    "lead_delta": number;
+
+    /**
+     * games where the team lead grew in the phase
+     */
+    "gained": number;
+
+    /**
+     * Winrate of the games where the team gained / lost lead in this phase.
+     */
+    "win_gained": number;
+    "win_lost": number;
+}
+
+/**
  * PlayerView is a scoreboard line with derived rates.
  */
 export interface PlayerView {
@@ -1055,6 +1142,47 @@ export interface Streak {
      */
     "from": number;
     "to": number;
+}
+
+/**
+ * SwingGame is a thrown or comeback game.
+ */
+export interface SwingGame {
+    "match_id": number;
+    "hero_name": string;
+    "end_time": number;
+    "win": boolean;
+
+    /**
+     * biggest lead (thrown) or deficit (comeback), absolute
+     */
+    "peak": number;
+
+    /**
+     * when it was
+     */
+    "peak_t": number;
+
+    /**
+     * when the lead changed sides afterwards (-1 if it never did)
+     */
+    "flip_t": number;
+
+    /**
+     * Your play between PeakT and FlipT (or the end).
+     */
+    "deaths": number;
+
+    /**
+     * -1 when the team got no kills
+     */
+    "kp": number;
+    "gpm": number;
+
+    /**
+     * your GPM over the whole game
+     */
+    "game_gpm": number;
 }
 
 /**

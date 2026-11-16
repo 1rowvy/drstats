@@ -177,6 +177,7 @@ type Dashboard struct {
 	Unknown   bool               `json:"unknown"` // no Steam ID configured
 	Extras    Extras             `json:"extras"`
 	Lanes     LaneStats          `json:"lanes"` // against the lane opponent
+	Flow      FlowStats          `json:"flow"`  // phases, thrown / comeback games, game length
 	// Replays is how many of the filtered matches have a parsed replay
 	// (replay-only blocks are computed over those).
 	Replays int `json:"replays"`
@@ -192,7 +193,8 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[in
 	d := &Dashboard{Filter: f, Averages: []MetricAvg{}, ByHero: []Bucket{}, ByWeekday: []Bucket{}, ByHour: []Bucket{},
 		ByLane: []Bucket{}, Trend: []TrendGame{}, Habits: []Habit{}, Recent: []Game{}, Deaths: []store.DeathPoint{},
 		Heroes: []HeroOption{}, Modes: []int{}, World: worldBounds(), Unknown: accountID == 0,
-		Lanes: LaneStats{Matchups: []LaneMatchup{}}}
+		Lanes: LaneStats{Matchups: []LaneMatchup{}},
+		Flow:  FlowStats{Phases: []PhaseStats{}, Thrown: []SwingGame{}, Comebacks: []SwingGame{}, ByLength: []Bucket{}}}
 	all, err := loadGames(st, accountID)
 	if err != nil {
 		return nil, err
@@ -266,6 +268,11 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[in
 
 	d.Extras = buildExtras(games, time.Now())
 	d.Lanes = laneStats(games)
+	flows, err := st.GameFlows(accountID)
+	if err != nil {
+		return nil, err
+	}
+	d.Flow = buildFlow(games, flows)
 	if accountID != 0 {
 		fast, err := st.FastestItems(accountID)
 		if err != nil {
