@@ -533,3 +533,14 @@ details.more summary:hover { color: var(--text); }
 .lane-death:first-of-type { border-top: 0; }
 .lane-mu { display: grid; grid-template-columns: 26px 1fr auto 52px; gap: 8px; align-items: center; font-size: 12.5px; padding: 4px 0; }
 .lane-mu .mono:last-child { text-align: right; }
+
+/* ---- game flow ---- */
+.phase-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.phase-table th { text-align: right; font-family: var(--display); font-size: 14px; font-weight: 600; padding: 4px 8px 10px; }
+.phase-table th small { display: block; font-family: var(--sans, inherit); color: var(--faint); font-size: 10.5px; font-weight: 400; margin-top: 3px; }
+.phase-table td { text-align: right; padding: 7px 8px; border-top: 1px solid var(--line); }
+.phase-table td:first-child { text-align: left; color: var(--dim); }
+.swing { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; padding: 8px 6px; border-radius: 8px; cursor: pointer; }
+.swing:hover { background: var(--panel-2); }
+.swing b { display: block; font-size: 12.5px; font-weight: 600; }
+.swing small { color: var(--faint); font-size: 11px; }
