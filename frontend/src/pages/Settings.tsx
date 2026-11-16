@@ -81,6 +81,18 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
       toast(String(e?.message ?? e), true);
     }
   };
+  // Applied right away like autostart; other unsaved edits on the page stay as they are.
+  const toggleTray = async (on: boolean) => {
+    try {
+      const cur = await Api.GetSettings();
+      const saved = await Api.SaveSettings({ ...cur, tray_off: !on });
+      setS({ ...s, tray_off: saved.tray_off });
+      onSaved(saved);
+      toast(on ? "Закрытие окна сворачивает в трей" : "Закрытие окна завершает drstats");
+    } catch (e: any) {
+      toast(String(e?.message ?? e), true);
+    }
+  };
   const update = () => Api.CheckForUpdates().catch((e) => toast(String(e?.message ?? e), true));
 
   return (
@@ -157,8 +169,15 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
           <input type="checkbox" checked={!!autostart} disabled={autostart === null} onChange={(e) => toggleAutostart(e.target.checked)} />
           <span>Запускать вместе с системой</span>
         </label>
+        <small style={{ display: "block", marginTop: -8, marginBottom: 16 }}>
+          Стартует в трее: следит за папкой реплеев, подтягивает OpenDota и докачивает свежие игры в фоне.
+        </small>
+        <label className="row" style={{ flexDirection: "row", alignItems: "center" }}>
+          <input type="checkbox" checked={!s.tray_off} onChange={(e) => toggleTray(e.target.checked)} />
+          <span>Сворачивать в трей при закрытии</span>
+        </label>
         <small style={{ display: "block", marginTop: -8 }}>
-          Стартует свёрнутым: следит за папкой реплеев, подтягивает OpenDota и докачивает свежие игры в фоне.
+          Крестик прячет окно в трей, приложение продолжает работать. Открыть — клик по иконке в трее, выйти — «Выход» в её меню.
         </small>
       </div>
 

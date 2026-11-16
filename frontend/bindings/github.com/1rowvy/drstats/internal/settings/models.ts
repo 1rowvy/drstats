@@ -69,4 +69,10 @@ export interface Settings {
      * ReplayCapGB is the storage cap for auto-downloaded replays (KeepCap).
      */
     "replay_cap_gb": number;
+
+    /**
+     * TrayOff makes closing the window quit the app instead of hiding it to
+     * the tray. Off by default = closing hides to the tray.
+     */
+    "tray_off": boolean;
 }

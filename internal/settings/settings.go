@@ -41,6 +41,9 @@ type Settings struct {
 	ReplayKeep string `json:"replay_keep"`
 	// ReplayCapGB is the storage cap for auto-downloaded replays (KeepCap).
 	ReplayCapGB float64 `json:"replay_cap_gb"`
+	// TrayOff makes closing the window quit the app instead of hiding it to
+	// the tray. Off by default = closing hides to the tray.
+	TrayOff bool `json:"tray_off"`
 }
 
 // ReplayKeep values.

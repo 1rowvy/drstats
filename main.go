@@ -36,6 +36,9 @@ const autostartFlag = "--autostart"
 //go:embed all:frontend/dist
 var assets embed.FS
 
+//go:embed build/appicon.png
+var trayIcon []byte
+
 func main() {
 	svc := &App{}
 	dir, err := dataDir()
@@ -70,20 +73,30 @@ func main() {
 		},
 	})
 
-	startState := application.WindowStateNormal
-	if slices.Contains(os.Args[1:], autostartFlag) {
-		startState = application.WindowStateMinimised
-	}
-	win = app.Window.NewWithOptions(application.WebviewWindowOptions{
+	// Autostart goes straight to the tray (or minimised when the tray is off).
+	autostart := slices.Contains(os.Args[1:], autostartFlag)
+	opts := application.WebviewWindowOptions{
 		Title:            "drstats",
-		Width:            1400,
-		Height:           900,
-		MinWidth:         1000,
-		MinHeight:        640,
+		MinWidth:         minWidth,
+		MinHeight:        minHeight,
 		EnableFileDrop:   true,
 		BackgroundColour: application.NewRGB(15, 17, 21),
 		URL:              "/",
-		StartState:       startState,
+		StartState:       application.WindowStateNormal,
+	}
+	keeper := newWindowKeeper(dir)
+	keeper.apply(&opts)
+	if autostart {
+		opts.Hidden = true // settings are not loaded yet: decided on start
+	}
+	win = app.Window.NewWithOptions(opts)
+	setupTray(app, win, keeper, func() bool { return svc.settings().TrayOff }, trayIcon)
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		if autostart && svc.settings().TrayOff {
+			win.Show()
+			win.Minimise()
+		}
+		ensureOnScreen(app, win)
 	})
 	win.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
 		files := e.Context().DroppedFiles()
