@@ -566,3 +566,20 @@ details.more summary:hover { color: var(--text); }
 .pager { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
 .pager .chips { align-items: center; }
 .pager .chip { min-width: 32px; }
+
+/* ---- weekly plan, farm ---- */
+.plan-card.empty-plan { display: flex; align-items: center; gap: 20px; justify-content: space-between; flex-wrap: wrap; }
+.plan-card.empty-plan h2 { margin-bottom: 6px; }
+.plan-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.plan-goal { background: var(--panel-2); border-radius: 12px; padding: 14px 16px; border: 1px solid transparent; }
+.plan-goal.ok { border-color: rgba(70, 200, 120, .35); }
+.pg-head { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+.pg-head b { font-weight: 600; }
+.pg-now { display: flex; align-items: baseline; gap: 10px; margin: 10px 0 8px; flex-wrap: wrap; }
+.pg-now .big { font-family: var(--display); font-size: 26px; font-weight: 700; }
+.pg-dots { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; }
+.pg-dots span { width: 10px; height: 10px; border-radius: 3px; cursor: pointer; }
+.pg-dots span.w { background: var(--win); }
+.pg-dots span.l { background: var(--loss); opacity: .7; }
+.zone-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 44px; gap: 8px; align-items: center; font-size: 12.5px; padding: 3px 0; }
+.zone-row .mono { text-align: right; }

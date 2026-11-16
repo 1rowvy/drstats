@@ -120,6 +120,9 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Lane analysis: match tab «Линия» (verdict at 10:00 = NW diff + XP diff / 2, ±500 → won / lost; head to head at 5:00 / 10:00, both sides of the lane, 0–10 min charts, lane deaths, usual result vs the opponent hero); lane stats card on dashboard and hero page (replays only)
 - [x] Game flow on dashboard and hero page: phases lane 0–10 / mid 10–25 / late 25+ (GPM, XPM, LH/min, deaths per 10 min, KP, team lead change, winrate if the phase was won / lost), thrown / comeback games (team lead or deficit ≥ 5k; your deaths, KP and GPM while it swung), winrate by game length (all games)
 - [x] Match «Разбор»: phases of the game against your usual numbers on the hero, thrown / comeback note (same computation as the dashboard)
+- [x] Weekly plan on the dashboard: 3 goals from the last 30 replays (LH@10, deaths, deaths before 10:00, KP, lane NW diff, mid-game idle share, farm GPM; farm goals skipped for supports = median LH@10 < 25); baseline = last 15 games, target = halfway to the best quarter; stored in settings key `plan`, 7 days, tracked per game
+- [x] Farm card (dashboard, hero page): creep / jungle gold per minute, idle and dead share by phase, idle per game and where, idle vs winrate, recent vs earlier farm
+- [x] Replays: unparsed replays whose file is gone are forgotten (watch tick, scan, before parsing); scan and watch take files unchanged for 1 min (Dota's partial auto-…-start demos)
 
 ### Auto-download of missing replays
 - [x] Store: `auto_downloads`, `replays.pruned_at`, missing-replay query; re-parse skips pruned

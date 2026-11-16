@@ -7,6 +7,7 @@ export type {
   Abilities, AbilityUse, Vision, TimeShare, Dashboard, Filter, Bucket, Habit, TrendGame, MetricAvg, Game, HeroOption,
   Battle, FightHero, ObjectiveView, Grade, Extras, Record as RecordRow, DayBucket, FastItemView, Streak,
   LaneHero, LaneStats, LaneMatchup, LaneOpp, FlowStats, PhaseStats, SwingGame,
+  PlanView, GoalProgress, PlanGoal, FarmStats, FarmPhase, IdleZone,
 } from "../bindings/github.com/1rowvy/drstats/internal/stats/models";
 export type { Death, Ward, Rune } from "../bindings/github.com/1rowvy/drstats/internal/parser/models";
 export type { Settings } from "../bindings/github.com/1rowvy/drstats/internal/settings/models";

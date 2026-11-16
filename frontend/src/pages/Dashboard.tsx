@@ -8,6 +8,8 @@ import { ResultPill } from "../components/ui";
 import { HabitsCard } from "../components/Habits";
 import { LaneStatsCard } from "../components/LaneStats";
 import { FlowSection } from "../components/Flow";
+import { PlanCard } from "../components/Plan";
+import { FarmCard } from "../components/Farm";
 
 const ACTIVITY_WEEKS = 12;
 const SOURCE_KEY = "dashboard.source";
@@ -53,7 +55,7 @@ export function DashboardPage({ tick, onMatch, onHero }: {
   if (d.unknown) return <div className="notice">Укажи свой Steam ID на странице «Импорт» — дашборд строится по твоим матчам.</div>;
   const bar = <SourceBar d={d} source={source} setSource={setSource} />;
   if (d.total === 0) return <>{bar}<div className="card empty">{source === "all" ? "Матчей с твоим участием пока нет — ни реплеев, ни истории OpenDota." : "Разобранных матчей с твоим участием пока нет."}</div></>;
-  return <>{bar}<Body d={d} days={days} setDays={setDays} onMatch={onMatch} onHero={onHero} /></>;
+  return <>{bar}<Body d={d} days={days} setDays={setDays} onMatch={onMatch} onHero={onHero} tick={tick} /></>;
 }
 
 /** Source switch (all games via OpenDota / replays only) and the history sync state. */
@@ -90,8 +92,8 @@ function SourceBar({ d, source, setSource }: { d: Dashboard; source: string; set
   );
 }
 
-function Body({ d, days, setDays, onMatch, onHero }: {
-  d: Dashboard; days: number; setDays: (n: number) => void; onMatch: (id: number) => void; onHero: (heroID: number) => void;
+function Body({ d, days, setDays, onMatch, onHero, tick }: {
+  d: Dashboard; days: number; setDays: (n: number) => void; onMatch: (id: number) => void; onHero: (heroID: number) => void; tick: number;
 }) {
   const names = useNames();
   const gpm = (d.averages ?? []).find((a) => a.key === "gpm");
@@ -136,6 +138,8 @@ function Body({ d, days, setDays, onMatch, onHero }: {
         </div>
       </div>
 
+      <div style={{ marginTop: 14 }}><PlanCard tick={tick} onMatch={onMatch} /></div>
+
       <div className="grid-side" style={{ gridTemplateColumns: "1fr 330px", marginTop: 14 }}>
         <Activity d={d} />
         <div className="card">
@@ -151,6 +155,7 @@ function Body({ d, days, setDays, onMatch, onHero }: {
       <div style={{ marginTop: 14 }}><LaneStatsCard s={d.lanes} /></div>
 
       <FlowSection f={d.flow} onMatch={onMatch} />
+      <div style={{ marginTop: 14 }}><FarmCard f={d.farm} /></div>
 
       {(d.recent ?? []).length > 0 && <>
         <div className="section-head"><h2>Последние игры</h2></div>
