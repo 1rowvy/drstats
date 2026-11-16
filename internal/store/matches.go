@@ -23,7 +23,13 @@ const (
 	EventBuyback   = "buyback"
 	EventObjective = "objective" // key npc name, other_id killer
 	EventHeroDmg   = "hdmg"      // player_id attacker, other_id target, key inflictor; 5 s bucket at t
+	EventSmoke     = "smoke"     // player_id smoked hero, other_id user
 )
+
+// SmokeData is the JSON payload of a smoke event.
+type SmokeData struct {
+	End float64 `json:"end"`
+}
 
 // ObjectiveData is the JSON payload of an objective event.
 type ObjectiveData struct {
@@ -240,6 +246,11 @@ func (s *Store) SaveMatch(replayID int64, m *parser.Match) (matchID int64, err e
 	for _, o := range m.Objectives {
 		data := ObjectiveData{Kind: o.Kind, Team: o.Team, Killer: o.Killer}
 		if err = event(o.T, EventObjective, -1, o.KillerPID, nil, nil, o.Key, data); err != nil {
+			return 0, err
+		}
+	}
+	for _, sm := range m.Smokes {
+		if err = event(sm.T, EventSmoke, sm.PlayerID, sm.UserPID, nil, nil, "", SmokeData{End: sm.End}); err != nil {
 			return 0, err
 		}
 	}
@@ -539,6 +550,10 @@ func (s *Store) events(m *parser.Match, matchID int64) error {
 			var od ObjectiveData
 			_ = json.Unmarshal([]byte(data), &od)
 			m.Objectives = append(m.Objectives, parser.Objective{T: t, Kind: od.Kind, Key: key, Team: od.Team, KillerPID: other, Killer: od.Killer})
+		case EventSmoke:
+			var sd SmokeData
+			_ = json.Unmarshal([]byte(data), &sd)
+			m.Smokes = append(m.Smokes, parser.Smoke{T: t, End: sd.End, PlayerID: pid, UserPID: other})
 		case EventHeroDmg:
 			var ad AmountData
 			_ = json.Unmarshal([]byte(data), &ad)

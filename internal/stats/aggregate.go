@@ -180,6 +180,7 @@ type Dashboard struct {
 	Flow      FlowStats          `json:"flow"`  // phases, thrown / comeback games, game length
 	Farm      FarmStats          `json:"farm"`  // farm efficiency and idle time
 	Avoid     DeathStats         `json:"avoid"` // avoidable deaths
+	Smokes    SmokeStats         `json:"smokes"`
 	// Replays is how many of the filtered matches have a parsed replay
 	// (replay-only blocks are computed over those).
 	Replays int `json:"replays"`
@@ -287,6 +288,11 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[in
 		return nil, err
 	}
 	d.Avoid = deathStats(games, classifyScenes(scenes))
+	sg, err := st.SmokeGames(accountID)
+	if err != nil {
+		return nil, err
+	}
+	d.Smokes = smokeStats(games, sg)
 	if accountID != 0 {
 		fast, err := st.FastestItems(accountID)
 		if err != nil {

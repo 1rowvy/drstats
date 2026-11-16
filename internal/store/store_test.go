@@ -46,6 +46,7 @@ func sampleMatch() *parser.Match {
 			Killer: "npc_dota_hero_antimage"}},
 		HeroDamage: []parser.DamageBucket{{T: 95, PlayerID: 0, Target: 5, Inflictor: "", Amount: 240}},
 		Pauses:     [][2]uint32{{4000, 4300}},
+		Smokes:     []parser.Smoke{{T: 400, End: 420.5, PlayerID: 0, UserPID: 0}, {T: 400, End: 431, PlayerID: 1, UserPID: 0}},
 	}
 }
 
@@ -105,7 +106,7 @@ func TestReplayLifecycle(t *testing.T) {
 		"purchases": {mm.Purchases, want.Purchases}, "casts": {mm.Casts, want.Casts}, "hits": {mm.Hits, want.Hits},
 		"combat": {mm.Combat, want.Combat}, "wards": {mm.Wards, want.Wards}, "runes": {mm.Runes, want.Runes},
 		"stacks": {mm.Stacks, want.Stacks}, "objectives": {mm.Objectives, want.Objectives},
-		"hero_damage": {mm.HeroDamage, want.HeroDamage}, "pauses": {mm.Pauses, want.Pauses}, "buybacks": {mm.Buybacks, want.Buybacks}, "players": {mm.Players, want.Players},
+		"hero_damage": {mm.HeroDamage, want.HeroDamage}, "pauses": {mm.Pauses, want.Pauses}, "buybacks": {mm.Buybacks, want.Buybacks}, "smokes": {mm.Smokes, want.Smokes}, "players": {mm.Players, want.Players},
 	} {
 		if !reflect.DeepEqual(pair[0], pair[1]) {
 			t.Errorf("%s round trip:\n got %+v\nwant %+v", name, pair[0], pair[1])

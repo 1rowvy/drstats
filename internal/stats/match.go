@@ -85,6 +85,8 @@ type MatchView struct {
 	// Reasons: why the game was lost / won against the player's own games;
 	// nil with too few of them.
 	Reasons *MatchReasons `json:"reasons"`
+	// Smokes of both teams (empty for replays parsed before smoke data).
+	Smokes []SmokeView `json:"smokes"`
 }
 
 // BuildMatchView loads a match and derives the view for the given focus:
@@ -152,6 +154,15 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 	}
 	v.Items = []ItemTiming{}
 	v.Battles = []Battle{}
+	teams := map[int]int{}
+	for _, p := range players {
+		teams[p.PlayerID] = p.Team
+	}
+	v.Smokes = analyzeSmokes(m.Smokes, deaths, m.Objectives, teams, v.Focus)
+	smokeRegions(v.Smokes, m.Smokes, byPID)
+	for i := range v.Smokes {
+		v.Smokes[i].Tick = clock.Tick(math.Max(v.Smokes[i].T-5, -90))
+	}
 	if v.Focus < 0 {
 		return v, nil
 	}
