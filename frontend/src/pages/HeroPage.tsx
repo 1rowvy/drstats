@@ -8,6 +8,7 @@ import { HabitsCard } from "../components/Habits";
 import { LaneStatsCard } from "../components/LaneStats";
 import { FlowSection } from "../components/Flow";
 import { FarmCard } from "../components/Farm";
+import { AvoidDeathsCard } from "../components/AvoidDeaths";
 import { DayParts, useDashboard } from "./Dashboard";
 
 const CONSUMABLE = /^(tango|flask|clarity|ward_|tpscroll|smoke_of_deceit|dust|enchanted_mango|faerie_fire|blood_grenade|branches|tome_of_knowledge)/;
@@ -93,6 +94,7 @@ export function HeroPage({ heroID, tick, onHero, onMatch }: {
           <div style={{ marginTop: 14 }}><LaneStatsCard s={d.lanes} /></div>
           <FlowSection f={d.flow} onMatch={onMatch} />
           <div style={{ marginTop: 14 }}><FarmCard f={d.farm} /></div>
+          <div style={{ marginTop: 14 }}><AvoidDeathsCard s={d.avoid} /></div>
           <div className="grid2" style={{ marginTop: 14 }}>
             <div className="card">
               <div className="card-head"><h2>Винрейт по времени суток</h2></div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Events } from "@wailsio/runtime";
-import { Api, AppEvents, MatchView, PlayerView } from "../api";
+import { Api, AppEvents, DeathCtx, MatchView, PlayerView } from "../api";
 import { clock, duration, gradeTone, kfmt, modeShort, num, pct, RADIANT, DIRE, rankName, regionName, relDate, roleName, teamName, thousands } from "../format";
 import { useNames } from "../names";
 import { HeroBadge, HeroName } from "../components/HeroBadge";
@@ -215,6 +215,15 @@ function Scoreboard({ view, onPick }: { view: MatchView; onPick: (pid: number) =
 
 // ---------------------------------------------------------------- deaths
 
+/** Why a death counts as avoidable, from its context flags. */
+function avoidWhy(c: DeathCtx): string {
+  const parts = ["один"];
+  if (c.deep) parts.push("на чужой половине");
+  if (!c.vision) parts.push("без вижна");
+  if (c.enemies >= 2) parts.push(`против ${c.enemies}`);
+  return parts.join(", ");
+}
+
 function DeathsTab({ view }: { view: MatchView }) {
   const names = useNames();
   const hasBg = useHasMapImage();
@@ -234,6 +243,7 @@ function DeathsTab({ view }: { view: MatchView }) {
   const positioned = deaths.filter(({ d }) => d.has_pos);
   const noVision = positioned.filter(({ ctx }) => ctx && !ctx.vision).length;
   const buybacks = deaths.filter(({ d }) => d.buyback).length;
+  const avoidable = deaths.filter(({ ctx }) => ctx?.avoidable).length;
 
   const points: MapPoint[] = layer === "deaths"
     ? deaths.map(({ d }, i) => ({ d, i })).filter(({ d }) => d.has_pos)
@@ -246,6 +256,7 @@ function DeathsTab({ view }: { view: MatchView }) {
       <div className="stat-grid">
         <Stat label="Смертей" value={deaths.length} big />
         <Stat label="Потеряно золота" value={goldLost ? num(-goldLost) : "0"} tone={goldLost ? "loss" : ""} big />
+        <Stat label="Глупых" value={`${avoidable} из ${deaths.length}`} tone={avoidable ? "loss" : ""} big />
         <Stat label="Без вижна" value={`${noVision} из ${positioned.length}`} tone={noVision ? "accent" : ""} big />
         <Stat label="Байбеков" value={buybacks} big />
       </div>
@@ -272,19 +283,25 @@ function DeathsTab({ view }: { view: MatchView }) {
               ? `${d.inflictor ? names.inflictor(d.inflictor) : "автоатака"}${killerHero ? ` (${killerHero})` : ""}`
               : names.unit(d.killer_name);
             return (
-              <div key={i} className={`death-card ${hover === i ? "hover" : ""}`} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+              <div key={i} className={`death-card ${hover === i ? "hover" : ""} ${ctx?.avoidable ? "avoidable" : ""}`} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
                 <div className="dc-head">
                   <span className="dc-num">{i + 1}</span>
                   <span className="dc-time">{clock(d.t)}</span>
                   {ctx?.region && <span className="dc-where">{regionName(ctx.region)}</span>}
                   {d.gold_lost > 0 && <span className="dc-gold">−{num(d.gold_lost)}</span>}
                 </div>
+                {ctx?.avoidable && <div className="dc-verdict">Глупая смерть: {avoidWhy(ctx)}</div>}
                 <div className="dc-line"><span>Убили: </span>{killers.length ? killers.join(", ") : names.unit(d.killer_name)}</div>
                 <div className="dc-line"><span>Добил: </span>{blow}</div>
                 <div className="dc-tags">
                   {d.has_pos && ctx && (ctx.vision
                     ? <span className="tag">Вижн был</span>
                     : <span className="tag warn"><Icon name="eyeOff" size={11} /> Без вижна</span>)}
+                  {ctx?.alone && <span className="tag warn">Один</span>}
+                  {ctx && !ctx.alone && ctx.allies > 0 && <span className="tag">{ctx.allies === 1 ? "Союзник рядом" : `Союзников рядом: ${ctx.allies}`}</span>}
+                  {ctx?.deep && <span className="tag warn">Чужая половина</span>}
+                  {ctx && ctx.enemies >= 2 && <span className="tag">Против {ctx.enemies}</span>}
+                  {ctx && ctx.gold >= 1500 && <span className="tag warn" title="Непотраченное золото в момент смерти">{num(ctx.gold)} золота в кармане</span>}
                   <span className="tag">{d.buyback ? "Байбек" : "Без байбека"}</span>
                   <span style={{ marginLeft: "auto" }}><TickButton tick={ctx?.tick} label="тик" /></span>
                 </div>

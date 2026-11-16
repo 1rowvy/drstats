@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import type { MatchView, PlayerView } from "../../api";
-import { clock, kfmt, lowerFirst, num, pct, RADIANT, regionName, upperFirst } from "../../format";
+import type { MatchView, PlayerView, Reason } from "../../api";
+import { clock, kfmt, lowerFirst, num, pct, plural, RADIANT, regionName, upperFirst } from "../../format";
 import { useNames } from "../../names";
 import { TickButton } from "../../components/ui";
 import { MatchPhasesCard } from "../../components/Flow";
 import { useDashboard } from "../Dashboard";
+import { gameMetric } from "../../gameMetrics";
 import { heroOf, keyItems, lastOf, objectiveLabel, tickAt, useFocus, useWidth } from "./common";
 
 // ---------------------------------------------------------------- summary line
@@ -58,6 +59,7 @@ export function OverviewTab({ view }: { view: MatchView }) {
   return (
     <div>
       <FlowCard view={view} />
+      <ReasonsCard view={view} />
       <Phases view={view} />
       <Moments view={view} />
       <Verdict view={view} />
@@ -272,6 +274,72 @@ function Phases({ view }: { view: MatchView }) {
   );
 }
 
+// ---------------------------------------------------------------- why lost / what won
+
+const PHASE_WHEN: Record<string, string> = { lane: "на линии", mid: "в мидгейме", late: "в лейте" };
+
+/** The game against your own games: why it was lost (vs your wins) or what won it. */
+function ReasonsCard({ view }: { view: MatchView }) {
+  const names = useNames();
+  const { me } = useFocus(view);
+  const r = view.reasons;
+  if (!view.is_me || !r) return null;
+  const main = r.main ?? [], other = r.other ?? [];
+  const hero = names.hero(me.hero_name);
+  const basis = r.ref_wins
+    ? `сравнение с твоими победами${r.on_hero ? ` на ${hero}` : ""} · ${r.basis} ${plural(r.basis, "игра", "игры", "игр")}`
+    : `сравнение с твоими играми${r.on_hero ? ` на ${hero}` : ""} · ${r.basis} ${plural(r.basis, "игра", "игры", "игр")}`;
+  // The phase where the team lost (or gained) the most, for context.
+  const phases = (view.phases ?? []).filter((p) => PHASE_WHEN[p.key]);
+  const swing = phases.length ? phases.reduce((a, b) => (r.win ? b.lead_delta > a.lead_delta : b.lead_delta < a.lead_delta) ? b : a) : null;
+  const teamLine = swing && Math.abs(swing.lead_delta) >= 1500
+    ? `Команда ${r.win ? "набрала" : "потеряла"} больше всего ${PHASE_WHEN[swing.key]}: ${kfmt(swing.lead_delta, true)} преимущества.`
+    : "";
+  return (
+    <div className={`card verdict ${r.win ? "good" : "bad"}`} style={{ marginTop: 14 }}>
+      <div className="card-head">
+        <h2 className={r.win ? "win" : "loss"} style={{ marginBottom: 0 }}>{r.win ? "Что принесло победу" : "Почему проиграл"}</h2>
+        <span className="meta">{basis}</span>
+      </div>
+      {main.length === 0 ? (
+        <div className="dim">
+          {r.win
+            ? "Ничего не выделяется — ты сыграл как обычно, победу добрала команда."
+            : `По твоим цифрам это игра уровня твоих побед — проиграла скорее команда или драфт. ${teamLine}`}
+        </div>
+      ) : (
+        <ul>
+          {main.map((x) => <ReasonItem key={x.key} x={x} win={r.win} lead={x === main[0] && !r.win} />)}
+        </ul>
+      )}
+      {main.length > 0 && teamLine && <div className="note">{teamLine}</div>}
+      {other.length > 0 && (
+        <div className="note">
+          {r.win ? "Слабее обычного: " : "Зато лучше обычного: "}
+          {other.map((x) => `${lowerFirst(gameMetric(x.key).label)} ${gameMetric(x.key).fmt(x.value)} (обычно ${gameMetric(x.key).fmt(x.ref)})`).join(", ")}.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReasonItem({ x, win, lead }: { x: Reason; win: boolean; lead: boolean }) {
+  const m = gameMetric(x.key);
+  const hb = x.higher_better;
+  const impact = x.win_good != null && x.win_bad != null && x.win_good - x.win_bad >= 0.05
+    ? `${upperFirst(lowerFirst(m.label))} ${hb ? "выше" : "меньше"} твоего обычного — ${pct(x.win_good)} побед, ${hb ? "ниже" : "больше"} — ${pct(x.win_bad)}.`
+    : "";
+  return (
+    <li>
+      <span className="mk">{win ? "+" : "−"}</span>
+      <div>
+        <b>{m.label}: {m.fmt(x.value)} <span className="dim" style={{ fontWeight: 400 }}>— {win ? "обычно" : "в победах"} {m.fmt(x.ref)}</span></b>
+        <span>{[impact, lead ? m.tip : ""].filter(Boolean).join(" ")}</span>
+      </div>
+    </li>
+  );
+}
+
 // ---------------------------------------------------------------- moments
 
 type Moment = { kind: "best" | "worst" | "turn"; t: number; title: string; text: string; tick?: number };
@@ -305,14 +373,14 @@ function useMoments(view: MatchView): Moment[] {
     const objectives = view.objectives ?? [];
     const worst = deaths.map(({ d, ctx }) => {
       const lostAfter = objectives.filter((o) => o.kind !== "roshan" && o.team === me.team && o.t >= d.t && o.t - d.t <= 60);
-      const s = d.gold_lost + (ctx && !ctx.vision && d.has_pos ? 400 : 0) + lostAfter.length * 500 + (d.buyback ? 0 : 0);
+      const s = d.gold_lost + (ctx && !ctx.vision && d.has_pos ? 400 : 0) + (ctx?.avoidable ? 600 : 0) + lostAfter.length * 500;
       return { d, ctx, lostAfter, s };
     }).sort((a, b) => b.s - a.s)[0];
     if (worst) {
       const { d, ctx, lostAfter } = worst;
       const where = ctx?.region ? lowerFirst(regionName(ctx.region)) : "";
       const blind = d.has_pos && ctx && !ctx.vision;
-      const title = `Умер${where ? ` — ${where}` : ""}${blind ? " без вижна" : ""}`;
+      const title = `${ctx?.avoidable ? "Глупая смерть" : "Умер"}${where ? ` — ${where}` : ""}${blind ? " без вижна" : ""}`;
       const killers = [d.killer, ...(d.assists ?? [])].filter((p, j, a) => p >= 0 && a.indexOf(p) === j).map(heroName).filter(Boolean);
       const text = [
         killers.length ? `Убили ${killers.join(", ")}.` : `Убил ${names.unit(d.killer_name)}.`,

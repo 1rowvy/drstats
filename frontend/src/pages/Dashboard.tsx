@@ -10,6 +10,7 @@ import { LaneStatsCard } from "../components/LaneStats";
 import { FlowSection } from "../components/Flow";
 import { PlanCard } from "../components/Plan";
 import { FarmCard } from "../components/Farm";
+import { AvoidDeathsCard } from "../components/AvoidDeaths";
 
 const ACTIVITY_WEEKS = 12;
 const SOURCE_KEY = "dashboard.source";
@@ -156,6 +157,7 @@ function Body({ d, days, setDays, onMatch, onHero, tick }: {
 
       <FlowSection f={d.flow} onMatch={onMatch} />
       <div style={{ marginTop: 14 }}><FarmCard f={d.farm} /></div>
+      <div style={{ marginTop: 14 }}><AvoidDeathsCard s={d.avoid} /></div>
 
       {(d.recent ?? []).length > 0 && <>
         <div className="section-head"><h2>Последние игры</h2></div>

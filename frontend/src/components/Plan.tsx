@@ -1,16 +1,7 @@
 import { useEffect, useState } from "react";
 import { Api, GoalProgress, PlanView } from "../api";
-import { num, pct, plural } from "../format";
-
-const GOALS: Record<string, { label: string; fmt: (v: number) => string; tip: string }> = {
-  lh10: { label: "Добивания к 10:00", fmt: (v) => String(Math.round(v)), tip: "Первые 10 минут — крипы важнее убийств: добивай каждую волну, не уходи с линии без причины." },
-  deaths: { label: "Смертей за игру", fmt: (v) => v.toFixed(1), tip: "Перед каждым заходом смотри на миникарту: сколько врагов сейчас не видно." },
-  deaths10: { label: "Смертей до 10:00", fmt: (v) => v.toFixed(1), tip: "На линии держись у своих крипов; пропали враги с карты — отходи." },
-  kp: { label: "Участие в убийствах", fmt: (v) => pct(v), tip: "Зачистил волну — посмотри на карту: где команда, туда и иди." },
-  lane_nw: { label: "Нетворс к оппоненту на 10:00", fmt: (v) => num(v, true), tip: "Не уступай волну: добивай и денай, торгуйся хп, когда оппонент тянется за крипом." },
-  mid_idle: { label: "Простой в мидгейме", fmt: (v) => pct(v), tip: "Между волнами — лагерь, стак или пуш. Не стой на месте и не бегай без цели." },
-  farm_gpm: { label: "Фарм в минуту", fmt: (v) => String(Math.round(v)), tip: "Строй маршрут: волна → лагерь → волна, без пустых переходов через карту." },
-};
+import { pct, plural } from "../format";
+import { gameMetric } from "../gameMetrics";
 
 /** Weekly plan: loads itself, reloads when matches change (tick). */
 export function PlanCard({ tick, onMatch }: { tick: number; onMatch: (id: number) => void }) {
@@ -34,7 +25,7 @@ export function PlanCard({ tick, onMatch }: { tick: number; onMatch: (id: number
           <h2>План на неделю</h2>
           <div className="dim">
             {v.enough
-              ? "Возьмём 3 самых слабых показателя из последних 30 игр, поставим реалистичные цели и будем отслеживать каждую новую игру."
+              ? "Возьмём 3 слабых показателя из последних 30 игр — в первую очередь те, от которых сильнее всего зависят твои победы, — поставим реалистичные цели и будем отслеживать каждую новую игру."
               : "Нужно хотя бы 10 разобранных игр с твоим участием, чтобы составить план."}
           </div>
         </div>
@@ -69,7 +60,7 @@ function reached(g: GoalProgress) {
 }
 
 function Goal({ g, onMatch }: { g: GoalProgress; onMatch: (id: number) => void }) {
-  const d = GOALS[g.key] ?? { label: g.key, fmt: (v: number) => v.toFixed(1), tip: "" };
+  const d = gameMetric(g.key);
   const games = g.games ?? [];
   const cur = g.current;
   // Progress from the baseline to the target, 0..1.
@@ -92,6 +83,13 @@ function Goal({ g, onMatch }: { g: GoalProgress; onMatch: (id: number) => void }
           {games.map((x) => (
             <span key={x.match_id} className={x.met ? "w" : "l"} title={d.fmt(x.value)} onClick={() => onMatch(x.match_id)} />
           ))}
+        </div>
+      )}
+      {g.win_met != null && g.win_miss != null && (
+        <div className="small" style={{ marginTop: 8 }}>
+          <span className="dim">Когда цель взята — </span><b className={g.win_met > g.win_miss ? "win" : ""}>{pct(g.win_met)}</b>
+          <span className="dim"> побед, когда нет — </span><b className={g.win_met > g.win_miss ? "loss" : ""}>{pct(g.win_miss)}</b>
+          <span className="faint"> · {g.n_met + g.n_miss} {plural(g.n_met + g.n_miss, "игра", "игры", "игр")}</span>
         </div>
       )}
       {d.tip && <div className="note" style={{ marginTop: 8 }}>{d.tip}</div>}
