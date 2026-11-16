@@ -5,6 +5,7 @@ import { clock, duration, modeShort, pct, plural, relDate, roleName, WEEKDAYS } 
 import { useNames } from "../names";
 import { HeroBadge } from "../components/HeroBadge";
 import { ResultPill } from "../components/ui";
+import { HabitsCard } from "../components/Habits";
 
 const ACTIVITY_WEEKS = 12;
 const SOURCE_KEY = "dashboard.source";
@@ -141,6 +142,11 @@ function Body({ d, days, setDays, onMatch, onHero }: {
         </div>
       </div>
 
+      <div className="grid2" style={{ marginTop: 14 }}>
+        <TiltCard d={d} />
+        <HabitsCard habits={d.habits ?? []} empty="Нужно хотя бы 15 матчей." />
+      </div>
+
       {(d.recent ?? []).length > 0 && <>
         <div className="section-head"><h2>Последние игры</h2></div>
         <RecentGames d={d} onMatch={onMatch} />
@@ -221,6 +227,69 @@ function HeroPool({ d, onHero }: { d: Dashboard; onHero: (id: number) => void })
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- tilt
+
+const TILT_MIN = 5; // games a bucket needs before it is compared
+
+/** Winrate after a win / a loss and by the game's number in a session. */
+function TiltCard({ d }: { d: Dashboard }) {
+  const t = d.extras.tilt;
+  const { after_win: aw, after_loss: al, current: cur } = t;
+  const session = t.session ?? [];
+  const notes: string[] = [];
+  if (aw.games >= TILT_MIN && al.games >= TILT_MIN) {
+    const diff = Math.round((aw.winrate - al.winrate) * 100);
+    if (diff >= 8) notes.push(`После поражения выигрываешь на ${diff}% реже, чем после победы. Слил — сделай паузу.`);
+    else if (diff <= -8) notes.push(`После поражения играешь даже лучше — на ${-diff}%. Злость тебе на пользу.`);
+    else notes.push("После поражения играешь так же, как после победы — тильт не мешает.");
+  }
+  const first = session[0];
+  if (first && first.games >= TILT_MIN) {
+    const drop = session.slice(1).find((b) => b.games >= TILT_MIN && first.winrate - b.winrate >= 0.1);
+    if (drop) {
+      const n = Number(drop.key);
+      notes.push(`${n === 4 ? "С 4-й" : `На ${n}-й`} игре за сессию винрейт падает до ${pct(drop.winrate)}. Лимит — ${n - 1} ${plural(n - 1, "игра", "игры", "игр")} подряд.`);
+    }
+  }
+  if (notes.length === 0) notes.push("Мало игр подряд, чтобы искать тильт.");
+  const streak = cur.len >= 2 ? `сейчас ${cur.len} ${cur.win ? plural(cur.len, "победа", "победы", "побед") : plural(cur.len, "поражение", "поражения", "поражений")} подряд` : "";
+  // Colour the tiles only when the gap is big enough to mean something.
+  const gap = aw.games >= TILT_MIN && al.games >= TILT_MIN && Math.abs(aw.winrate - al.winrate) >= 0.08;
+  const tile = (label: string, b: Bucket, other: Bucket) => (
+    <div className="tile" style={{ padding: "14px 16px" }}>
+      <div className="label">{label} · {b.games} {plural(b.games, "игра", "игры", "игр")}</div>
+      <div className={`val ${!b.games ? "faint" : gap ? (b.winrate < other.winrate ? "loss" : "win") : ""}`} style={{ fontSize: 30 }}>{b.games ? pct(b.winrate) : "—"}</div>
+    </div>
+  );
+  const max = Math.max(...session.map((b) => (b.games ? b.winrate : 0)));
+  return (
+    <div className="card">
+      <div className="card-head">
+        <h2>Тильт</h2>
+        {streak && <span className={`meta ${!cur.win && cur.len >= 3 ? "loss" : ""}`}>{streak}</span>}
+      </div>
+      <div className="tiles">
+        {tile("После победы", aw, al)}
+        {tile("После поражения", al, aw)}
+      </div>
+      <div className="caps" style={{ margin: "16px 0 8px" }}>Игра по счёту за сессию</div>
+      <div className="dayparts" style={{ height: 90 }}>
+        {session.map((b) => (
+          <div className="col" key={b.key}>
+            <b className={b.games && b.winrate < 0.5 ? "loss" : ""}>{b.games ? pct(b.winrate) : "—"}</b>
+            <div className="b" style={{ height: `${Math.max(4, b.winrate * 100)}%`,
+              background: b.games === 0 ? "#1f232c" : b.winrate === max ? "var(--accent)" : b.winrate < 0.5 ? "var(--loss)" : "#2c313c" }} />
+          </div>
+        ))}
+      </div>
+      <div className="dayparts-labels">
+        {session.map((b) => <div key={b.key}><span>{b.key === "4" ? "4-я и дальше" : `${b.key}-я`}</span><small>{b.games} {plural(b.games, "игра", "игры", "игр")}</small></div>)}
+      </div>
+      {notes.map((n) => <div key={n} className="note">{n}</div>)}
     </div>
   );
 }

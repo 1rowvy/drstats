@@ -115,6 +115,7 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] OpenDota player history client + `od_history` table + background sync
 - [x] Dashboard source «Все игры / Только реплеи», merged aggregates
 - [x] Dashboard UI: source switch, sync status, OpenDota-only matches
+- [x] Dashboard: last 10 games, tilt card (game-in-session winrate, after win / after loss, current streak; session = gap ≤ 1 h), habits (last 10 vs earlier) over all heroes
 
 ### Auto-download of missing replays
 - [x] Store: `auto_downloads`, `replays.pruned_at`, missing-replay query; re-parse skips pruned
