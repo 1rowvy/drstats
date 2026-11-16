@@ -179,6 +179,14 @@ export function Progress(): $CancellablePromise<library$0.Progress> {
 }
 
 /**
+ * Rank returns the estimated rating curve and its analysis over the last
+ * days (0 = all time).
+ */
+export function Rank(days: number): $CancellablePromise<stats$0.RankView | null> {
+    return $Call.ByID(727568559, days);
+}
+
+/**
  * RefreshConstants re-downloads constants from OpenDota.
  */
 export function RefreshConstants(): $CancellablePromise<void> {

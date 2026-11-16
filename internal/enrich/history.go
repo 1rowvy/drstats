@@ -33,6 +33,12 @@ type HistoryFetcher interface {
 	FetchHistory(ctx context.Context, accountID uint32, days int) ([]opendota.HistoryMatch, error)
 }
 
+// ProfileFetcher loads the account's current medal. A HistoryFetcher that
+// also implements it gets the medal recorded after every successful sync.
+type ProfileFetcher interface {
+	FetchProfile(ctx context.Context, accountID uint32) (opendota.Profile, error)
+}
+
 // History keeps the OpenDota match history of the account in the store.
 type History struct {
 	st      *store.Store
@@ -87,8 +93,11 @@ func (h *History) Sync(ctx context.Context, accountID uint32, force bool) (err e
 			return err
 		}
 		slog.Warn("opendota history", "account", accountID, "err", ferr)
-	} else if err := h.st.SaveHistory(accountID, ms); err != nil {
-		return err
+	} else {
+		if err := h.st.SaveHistory(accountID, ms); err != nil {
+			return err
+		}
+		h.saveRank(rctx, accountID, now)
 	}
 	state, err = h.st.HistoryState(accountID)
 	if err != nil {
@@ -96,6 +105,22 @@ func (h *History) Sync(ctx context.Context, accountID uint32, force bool) (err e
 	}
 	h.emit(EventHistory, HistoryUpdated{AccountID: accountID, State: state, Added: len(ms)})
 	return ferr
+}
+
+// saveRank records the current medal; failures are only logged (the rank
+// is a nice-to-have on top of the history).
+func (h *History) saveRank(ctx context.Context, accountID uint32, now time.Time) {
+	pf, ok := h.fetch.(ProfileFetcher)
+	if !ok {
+		return
+	}
+	p, err := pf.FetchProfile(ctx, accountID)
+	if err == nil {
+		err = h.st.SaveRank(accountID, store.RankSeen{T: now.Unix(), RankTier: p.RankTier, LeaderboardRank: p.LeaderboardRank})
+	}
+	if err != nil {
+		slog.Warn("opendota profile", "account", accountID, "err", err)
+	}
 }
 
 // Loop syncs on start and then every HistoryMaxAge until ctx is done.

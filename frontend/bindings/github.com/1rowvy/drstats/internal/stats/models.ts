@@ -578,6 +578,11 @@ export interface Game {
     "party_size": number;
 
     /**
+     * medal at the time (replay, else OpenDota); 0 when unknown
+     */
+    "rank_tier": number;
+
+    /**
      * Laning stage (nil when the series has no sample at 10:00).
      */
     "lh10": number | null;
@@ -1307,6 +1312,195 @@ export interface PlayerView {
      * benchmarks); nil when not fetched.
      */
     "od": opendota$0.Player | null;
+}
+
+/**
+ * RankBucket is the rating won or lost in a group of ranked games.
+ */
+export interface RankBucket {
+    "key": string;
+    "games": number;
+    "wins": number;
+
+    /**
+     * estimated MMR
+     */
+    "net": number;
+}
+
+/**
+ * RankMark is a medal actually seen: in a replay / OpenDota match or in the
+ * OpenDota profile. Index is the curve point it belongs to.
+ */
+export interface RankMark {
+    "index": number;
+    "t": number;
+    "tier": number;
+
+    /**
+     * middle of that star
+     */
+    "mmr": number;
+
+    /**
+     * from the profile (else from a match)
+     */
+    "profile": boolean;
+}
+
+/**
+ * RankPoint is one ranked game on the MMR curve.
+ */
+export interface RankPoint {
+    "match_id": number;
+    "end_time": number;
+    "win": boolean;
+    "hero_name": string;
+
+    /**
+     * no replay: opens on OpenDota
+     */
+    "opendota": boolean;
+
+    /**
+     * estimated, after the game
+     */
+    "mmr": number;
+}
+
+/**
+ * RankView is the Rank page.
+ */
+export interface RankView {
+    /**
+     * no Steam ID configured
+     */
+    "unknown": boolean;
+
+    /**
+     * period, 0 = all time
+     */
+    "days": number;
+
+    /**
+     * Anchored is true when the curve is pinned to a medal seen; otherwise
+     * MMR values are relative (the curve starts at 0).
+     */
+    "anchored": boolean;
+
+    /**
+     * ranked games in the period, oldest first
+     */
+    "points": RankPoint[] | null;
+
+    /**
+     * medals seen in the period
+     */
+    "marks": RankMark[] | null;
+
+    /**
+     * ranked games, all time
+     */
+    "total": number;
+
+    /**
+     * last medal seen (0 = never)
+     */
+    "tier": number;
+
+    /**
+     * when, unix
+     */
+    "tier_at": number;
+
+    /**
+     * Immortal place, from the profile
+     */
+    "leaderboard": number;
+
+    /**
+     * best medal seen, all time
+     */
+    "peak_tier": number;
+
+    /**
+     * current estimate
+     */
+    "mmr": number;
+
+    /**
+     * medal of the current estimate
+     */
+    "est_tier": number;
+
+    /**
+     * MMR of the next star (0 = Immortal)
+     */
+    "next_at": number;
+
+    /**
+     * in the period
+     */
+    "games": number;
+    "wins": number;
+    "net": number;
+
+    /**
+     * last 7 days
+     */
+    "net7": number;
+
+    /**
+     * last 30 days
+     */
+    "net30": number;
+
+    /**
+     * best estimate in the period
+     */
+    "peak": number;
+    "peak_at": number;
+    "low": number;
+
+    /**
+     * longest win streak in the period
+     */
+    "best_run": number;
+
+    /**
+     * longest loss streak
+     */
+    "worst_run": number;
+
+    /**
+     * current streak, > 0 wins, < 0 losses
+     */
+    "streak": number;
+
+    /**
+     * key: hero npc name; most net first
+     */
+    "by_hero": RankBucket[] | null;
+
+    /**
+     * key: safe / mid / off / jungle / roam
+     */
+    "by_lane": RankBucket[] | null;
+
+    /**
+     * key: solo / party
+     */
+    "by_party": RankBucket[] | null;
+
+    /**
+     * key: "2026-11-09" (week) or "2026-11" (month), oldest first
+     */
+    "by_period": RankBucket[] | null;
+
+    /**
+     * ByPeriod is by week
+     */
+    "weekly": boolean;
 }
 
 /**

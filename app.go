@@ -378,6 +378,16 @@ func (a *App) Dashboard(f stats.Filter) (*stats.Dashboard, error) {
 	return stats.BuildDashboard(a.st, a.accountID(), f, byID, stats.Options{HitWindow: cfg.HitWindowSec, IdleThreshold: cfg.IdleThreshold})
 }
 
+// Rank returns the estimated rating curve and its analysis over the last
+// days (0 = all time).
+func (a *App) Rank(days int) (*stats.RankView, error) {
+	var byID map[int]string
+	if n, err := a.names.Names(); err == nil {
+		byID = n.HeroByID
+	}
+	return stats.BuildRank(a.st, a.accountID(), days, byID, time.Now())
+}
+
 // Progress returns the parse queue state.
 func (a *App) Progress() library.Progress { return a.lib.Progress() }
 

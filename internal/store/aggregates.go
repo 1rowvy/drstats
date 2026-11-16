@@ -37,6 +37,7 @@ type GameRow struct {
 	Stuns        float64 `json:"stuns"`
 	TeamKills    int     `json:"team_kills"`
 	PartySize    int     `json:"party_size"` // OpenDota; 0 when unknown
+	RankTier     int     `json:"rank_tier"`  // medal at the time (replay, else OpenDota); 0 when unknown
 
 	// Laning stage (nil when the series has no sample at 10:00).
 	LH10      *int            `json:"lh10"`
@@ -60,7 +61,8 @@ func (s *Store) Games(accountID uint32) ([]GameRow, error) {
 		       (SELECT COALESCE(SUM(q.kills), 0) FROM players q WHERE q.match_id = m.match_id AND q.team = p.team),
 		       s.last_hits, s.denies, s.net_worth, s.total_xp,
 		       (SELECT COUNT(*) FROM events e WHERE e.match_id = m.match_id AND e.type = ? AND e.player_id = p.player_id AND e.t <= 600),
-		       COALESCE(o.party_size, 0)
+		       COALESCE(o.party_size, 0),
+		       CASE WHEN p.rank_tier > 0 THEN p.rank_tier ELSE COALESCE(o.rank_tier, 0) END
 		FROM players p
 		JOIN matches m ON m.match_id = p.match_id
 		LEFT JOIN series s ON s.match_id = m.match_id AND s.player_id = p.player_id AND s.t = 600
@@ -80,7 +82,7 @@ func (s *Store) Games(accountID uint32) ([]GameRow, error) {
 			&g.PlayerID, &g.Team, &g.HeroID, &g.HeroName, &g.Kills, &g.Deaths, &g.Assists, &g.LastHits, &g.Denies,
 			&g.NetWorth, &g.TotalGold, &g.TotalXP, &g.HeroDamage, &g.TowerDamage, &g.Healing, &g.GoldLost,
 			&g.ObsPlaced, &g.SenPlaced, &g.CampsStacked, &g.Stuns, &g.TeamKills,
-			&lh, &dn, &nw, &xp, &g.Deaths10, &g.PartySize); err != nil {
+			&lh, &dn, &nw, &xp, &g.Deaths10, &g.PartySize, &g.RankTier); err != nil {
 			return nil, err
 		}
 		if lh.Valid {
