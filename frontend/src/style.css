@@ -237,7 +237,25 @@ code { background: var(--panel-3); padding: 1px 5px; border-radius: 4px; font-fa
 /* ---- match page ---- */
 .hero-card { position: relative; overflow: hidden; padding: 28px 30px 28px; display: flex; gap: 24px; align-items: center; }
 .hero-card .rings { position: absolute; right: -120px; top: 50%; transform: translateY(-50%); width: 520px; height: 520px; pointer-events: none; }
-.hero-card .main { flex: 1; min-width: 0; position: relative; }
+.hero-card .main { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.hero-card .grade-box { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+/* Hero render behind the right half: upper body, fading into the card on the left and bottom. */
+.hero-art { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.hero-art img { position: absolute; right: 150px; top: -14%; width: clamp(420px, 46%, 560px); height: auto; user-select: none; }
+.hero-art .render {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 38%), linear-gradient(to bottom, #000 62%, transparent 96%);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(to right, transparent 0%, #000 38%), linear-gradient(to bottom, #000 62%, transparent 96%);
+  mask-composite: intersect; opacity: .92; filter: saturate(1.08) contrast(1.04);
+}
+.hero-art .glow { right: 80px; top: -30%; width: clamp(520px, 60%, 700px); filter: blur(60px) saturate(1.8); opacity: .38; }
+.hero-card.with-art::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: linear-gradient(90deg, var(--panel) 0%, var(--panel) 30%, rgba(0,0,0,0) 62%);
+}
+.hero-card.with-art .summary { max-width: 48%; text-shadow: 0 1px 8px var(--panel); }
+.hero-card.with-art .grade-box .grade-ring { background: rgba(10, 12, 16, .55); border-radius: 50%; backdrop-filter: blur(6px); box-shadow: 0 0 0 6px rgba(10,12,16,.35); }
+.hero-card.with-art .grade-box > .caps { text-shadow: 0 1px 6px rgba(0,0,0,.9); color: var(--text); }
+
 .hero-card .meta-line { display: flex; align-items: center; gap: 10px; color: var(--dim); font-size: 12px; margin-bottom: 14px; }
 .hero-card h1 { font-size: 58px; font-weight: 800; letter-spacing: -.02em; }
 .hero-card .summary { color: var(--dim); font-size: 14px; margin-top: 12px; }

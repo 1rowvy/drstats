@@ -124,12 +124,23 @@ function HeroCard({ view, me, won, title, meta, summary }: {
   view: MatchView; me: PlayerView; won: boolean | null; title: React.ReactNode; meta: string; summary: string;
 }) {
   const g = view.grade;
+  // Full-body hero render (cached by the backend, internal/heroimg); rings when unavailable.
+  const short = me.hero_name.replace(/^npc_dota_hero_/, "");
+  const [artFailed, setArtFailed] = useState(false);
+  const art = short && !artFailed ? `/heroimg/render/${short}.png` : "";
   const ringColor = !g ? "var(--panel-3)" : g.letter.startsWith("A") ? "var(--accent)" : g.letter === "D" ? "var(--loss)" : "var(--text)";
   return (
-    <div className="card hero-card">
-      <svg className="rings" viewBox="0 0 520 520" aria-hidden>
-        {[250, 200, 150].map((r) => <circle key={r} cx={260} cy={260} r={r} fill="none" stroke="rgba(255,255,255,.035)" />)}
-      </svg>
+    <div className={`card hero-card ${art ? "with-art" : ""}`}>
+      {art ? (
+        <div className="hero-art" aria-hidden>
+          <img className="glow" src={art} alt="" />
+          <img className="render" src={art} alt="" onError={() => setArtFailed(true)} />
+        </div>
+      ) : (
+        <svg className="rings" viewBox="0 0 520 520" aria-hidden>
+          {[250, 200, 150].map((r) => <circle key={r} cx={260} cy={260} r={r} fill="none" stroke="rgba(255,255,255,.035)" />)}
+        </svg>
+      )}
       <div className="main">
         <div className="meta-line"><ResultPill won={won} /><span>{meta}</span><ODMark status={view.od_status} /></div>
         <h1>{title}</h1>
@@ -141,7 +152,7 @@ function HeroCard({ view, me, won, title, meta, summary }: {
           <div><div className="stat-value">{pct(view.fights.kp)}</div><div className="caps">Участие</div></div>
         </div>
       </div>
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}
+      <div className="grade-box"
         title={g ? `По сравнению с ${g.basis} твоими матчами${g.on_hero ? " на этом герое" : ""}: KDA, GPM, XPM, урон, участие, смерти, ЛХ, урон по строениям + бонус за победу` : "Нужно хотя бы 6 разобранных матчей"}>
         <Ring value={g ? g.score / 100 : 0} size={132} stroke={11} color={ringColor}>
           <b className={g ? gradeTone(g.letter) : "faint"} style={{ fontSize: 40, color: g && !gradeTone(g.letter) ? "var(--text)" : undefined }}>{g?.letter ?? "—"}</b>

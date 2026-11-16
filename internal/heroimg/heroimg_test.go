@@ -11,16 +11,16 @@ func TestMiddlewareCachesAndPassesThrough(t *testing.T) {
 	var hits atomic.Int32
 	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
-		if r.URL.Path != "/antimage.png" {
+		if r.URL.Path != "/antimage.png" && r.URL.Path != "/renders/antimage.png" {
 			http.NotFound(w, r)
 			return
 		}
 		w.Write([]byte("\x89PNG\r\n\x1a\nfake"))
 	}))
 	defer cdn.Close()
-	old := CDN
-	CDN = cdn.URL + "/"
-	defer func() { CDN = old }()
+	old, oldR := CDN, RenderCDN
+	CDN, RenderCDN = cdn.URL+"/", cdn.URL+"/renders/"
+	defer func() { CDN, RenderCDN = old, oldR }()
 
 	c := New(t.TempDir())
 	h := c.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusTeapot) }))
@@ -50,5 +50,17 @@ func TestMiddlewareCachesAndPassesThrough(t *testing.T) {
 	}
 	if code := get(Prefix + "..%2Fx.png"); code != http.StatusNotFound {
 		t.Fatalf("bad name: got %d", code)
+	}
+	// Full-body render: its own CDN path and cache file.
+	for range 2 {
+		if code := get(Prefix + "render/antimage.png"); code != http.StatusOK {
+			t.Fatalf("render: got %d", code)
+		}
+	}
+	if hits.Load() != 3 {
+		t.Fatalf("render: expected one more CDN hit, hits=%d", hits.Load())
+	}
+	if code := get(Prefix + "render/../antimage.png"); code != http.StatusNotFound {
+		t.Fatalf("render traversal: got %d", code)
 	}
 }
