@@ -208,6 +208,7 @@ code { background: var(--panel-3); padding: 1px 5px; border-radius: 4px; font-fa
   display: grid; grid-template-columns: minmax(200px, 1.7fr) 110px repeat(4, minmax(60px, .8fr)) 64px; gap: 12px; align-items: center;
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 11px 18px 11px 12px; min-height: 64px;
 }
+.mrow.recent { grid-template-columns: minmax(200px, 1.7fr) 190px repeat(4, minmax(60px, .8fr)); }
 .mrow.click { cursor: pointer; }
 .mrow.click:hover { background: #14171d; border-color: var(--line-2); }
 .mrow .hero-name-text b { font-family: var(--display); font-size: 14px; font-weight: 600; }

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Browser } from "@wailsio/runtime";
 import { Api, Bucket, Dashboard, Filter } from "../api";
-import { clock, duration, pct, plural, relDate, WEEKDAYS } from "../format";
+import { clock, duration, modeShort, pct, plural, relDate, roleName, WEEKDAYS } from "../format";
 import { useNames } from "../names";
 import { HeroBadge } from "../components/HeroBadge";
+import { ResultPill } from "../components/ui";
 
 const ACTIVITY_WEEKS = 12;
 const SOURCE_KEY = "dashboard.source";
@@ -140,6 +141,11 @@ function Body({ d, days, setDays, onMatch, onHero }: {
         </div>
       </div>
 
+      {(d.recent ?? []).length > 0 && <>
+        <div className="section-head"><h2>Последние игры</h2></div>
+        <RecentGames d={d} onMatch={onMatch} />
+      </>}
+
       <div className="section-head"><h2>Рекорды</h2></div>
       <Records d={d} onMatch={onMatch} />
 
@@ -215,6 +221,35 @@ function HeroPool({ d, onHero }: { d: Dashboard; onHero: (id: number) => void })
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- recent games
+
+/** The last matches under the dashboard filter, newest first. */
+function RecentGames({ d, onMatch }: { d: Dashboard; onMatch: (id: number) => void }) {
+  const names = useNames();
+  return (
+    <div className="match-list">
+      {(d.recent ?? []).map((g) => {
+        const sub = [roleName(g.lane, g.team, g.lh10), modeShort(g.game_mode, g.lobby_type), relDate(g.end_time)].filter(Boolean).join(" · ");
+        const gpm = g.duration >= 60 ? Math.round(g.total_gold / (g.duration / 60)) : null;
+        return (
+          <div key={g.match_id} className="mrow recent click" title={g.opendota ? "Без реплея — откроется на OpenDota" : undefined}
+            onClick={() => openMatch(g.match_id, g.opendota, onMatch)}>
+            <span className="hero-name">
+              <HeroBadge npc={g.hero_name} size={40} />
+              <span className="hero-name-text"><b>{names.hero(g.hero_name)}</b><small>{sub}</small></span>
+            </span>
+            <div><ResultPill won={g.win} />{g.opendota && <span className="pill" style={{ marginLeft: 6 }}>OpenDota</span>}</div>
+            <div className="cell"><span className="mono">{g.kills}/{g.deaths}/{g.assists}</span><small>K/D/A</small></div>
+            <div className="cell"><span className="mono">{g.last_hits}/{g.denies}</span><small>ЛХ/ДН</small></div>
+            <div className="cell"><span className="mono">{gpm ?? "—"}</span><small>GPM</small></div>
+            <div className="cell"><span className="mono">{duration(g.duration)}</span><small>длит.</small></div>
+          </div>
+        );
+      })}
     </div>
   );
 }
