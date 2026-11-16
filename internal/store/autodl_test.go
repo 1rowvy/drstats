@@ -39,12 +39,36 @@ func TestMissingReplaysAndPruning(t *testing.T) {
 	if _, err := s.db.Exec(`UPDATE auto_downloads SET tried_at = 0 WHERE match_id = 45`); err != nil {
 		t.Fatal(err)
 	}
-	got, err := s.MissingReplays(100, now-15*86400, now-3600)
+	retry := Retry{Before: now - 3600, FreshSince: now - 2*86400, FastBefore: now - 300, FastAttempts: 12}
+	got, err := s.MissingReplays(100, now-15*86400, retry)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 || got[0] != 45 || got[1] != 46 {
 		t.Fatalf("missing = %v, want [45 46]", got)
+	}
+	// A fresh match Valve answered 404 for is retried after FastBefore.
+	if err := s.SaveHistory(100, []opendota.HistoryMatch{{MatchID: 48, StartTime: now - 1800, HeroID: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetAutoDownload(48, AutoExpired, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.MissingReplays(100, now-15*86400, retry); len(got) != 2 {
+		t.Fatalf("fresh expired retried too soon: %v", got)
+	}
+	if _, err := s.db.Exec(`UPDATE auto_downloads SET tried_at = ? WHERE match_id = 48`, now-600); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.MissingReplays(100, now-15*86400, retry); len(got) != 3 || got[0] != 48 {
+		t.Fatalf("fresh expired not retried: %v", got)
+	}
+	// Past the fast attempts it waits for the normal retry.
+	if _, err := s.db.Exec(`UPDATE auto_downloads SET attempts = 12 WHERE match_id = 48`); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.MissingReplays(100, now-15*86400, retry); len(got) != 2 {
+		t.Fatalf("fresh expired retried after fast attempts: %v", got)
 	}
 
 	in, err := s.ReplaysIn(dir + "/")

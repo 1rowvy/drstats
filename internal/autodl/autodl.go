@@ -29,8 +29,13 @@ var (
 	Window = 15 * 24 * time.Hour
 	// RetryAfter is the wait before a failed / not-yet-available match is tried again.
 	RetryAfter = time.Hour
+	// Fresh matches (younger than FreshAge) are retried every FastRetry for
+	// the first FastAttempts attempts: their replay shows up minutes after the game.
+	FreshAge     = 2 * 24 * time.Hour
+	FastRetry    = 5 * time.Minute
+	FastAttempts = 12
 	// Interval between rounds when nothing wakes the downloader.
-	Interval = 30 * time.Minute
+	Interval = FastRetry
 	// Gap between two downloads (OpenDota rate limit, Valve servers).
 	Gap = 2 * time.Second
 )
@@ -123,7 +128,12 @@ func (d *Downloader) round(ctx context.Context) {
 		return
 	}
 	now := time.Now()
-	ids, err := d.st.MissingReplays(acc, now.Add(-Window).Unix(), now.Add(-RetryAfter).Unix())
+	ids, err := d.st.MissingReplays(acc, now.Add(-Window).Unix(), store.Retry{
+		Before:       now.Add(-RetryAfter).Unix(),
+		FreshSince:   now.Add(-FreshAge).Unix(),
+		FastBefore:   now.Add(-FastRetry).Unix(),
+		FastAttempts: FastAttempts,
+	})
 	if err != nil {
 		slog.Error("auto-download: missing replays", "err", err)
 		return
@@ -199,12 +209,12 @@ func (d *Downloader) State() (State, error) {
 	d.mu.Lock()
 	s := State{Enabled: d.enabled(), Current: d.current, Queued: d.queued, LastError: d.lastErr, Dir: d.dir}
 	d.mu.Unlock()
-	counts, err := d.st.AutoDownloadCounts()
+	counts, err := d.st.AutoDownloadCounts(time.Now().Add(-FreshAge).Unix())
 	if err != nil {
 		return s, err
 	}
 	s.Done = counts[store.AutoOK]
-	s.Waiting = counts[store.AutoNoSalt] + counts[store.AutoError]
+	s.Waiting = counts[store.AutoNoSalt] + counts[store.AutoError] + counts[store.AutoExpiredFresh]
 	s.Expired = counts[store.AutoExpired] + counts[store.AutoNotFound]
 	kept, err := d.st.ReplaysIn(d.dir)
 	if err != nil {

@@ -9,25 +9,40 @@ import (
 // Auto-download outcomes.
 const (
 	AutoOK       = "ok"
-	AutoExpired  = "expired"  // Valve deleted the replay: final
+	AutoExpired  = "expired"  // Valve has no replay: final for old matches, retried for fresh ones
 	AutoNotFound = "notfound" // OpenDota does not know the match: final
 	AutoNoSalt   = "nosalt"   // OpenDota has no replay info yet: retry
 	AutoError    = "error"    // network etc.: retry
 )
 
+// Retry says when failed auto-downloads are tried again (all values unix).
+type Retry struct {
+	Before int64 // failed attempts older than this are retried
+	// Fresh matches (started after FreshSince) are retried sooner: right after
+	// a game OpenDota has no salt yet and Valve answers 404 until the replay is
+	// uploaded, so "expired" is not final for them either. The first
+	// FastAttempts attempts are retried once older than FastBefore.
+	FreshSince   int64
+	FastBefore   int64
+	FastAttempts int
+}
+
 // MissingReplays lists history matches of the account that started after
 // since (unix), have no stored match or replay, and are not finished or
-// waiting for a retry in auto_downloads (retryBefore: unix; failed attempts
-// older than it are tried again). Newest first.
-func (s *Store) MissingReplays(accountID uint32, since, retryBefore int64) ([]int64, error) {
+// waiting for a retry in auto_downloads. Newest first.
+func (s *Store) MissingReplays(accountID uint32, since int64, r Retry) ([]int64, error) {
 	rows, err := s.db.Query(`
 		SELECT h.match_id FROM od_history h
 		LEFT JOIN auto_downloads a ON a.match_id = h.match_id
 		WHERE h.account_id = ? AND h.start_time >= ?
 		  AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.match_id = h.match_id)
 		  AND NOT EXISTS (SELECT 1 FROM replays r WHERE r.match_id = h.match_id)
-		  AND (a.match_id IS NULL OR (a.status IN ('nosalt', 'error') AND a.tried_at < ?))
-		ORDER BY h.start_time DESC`, accountID, since, retryBefore)
+		  AND (a.match_id IS NULL
+		    OR (a.status IN ('nosalt', 'error') AND a.tried_at < ?)
+		    OR (a.status IN ('nosalt', 'error', 'expired') AND h.start_time >= ?
+		        AND (a.tried_at < ? OR (a.attempts < ? AND a.tried_at < ?))))
+		ORDER BY h.start_time DESC`, accountID, since,
+		r.Before, r.FreshSince, r.Before, r.FastAttempts, r.FastBefore)
 	if err != nil {
 		return nil, err
 	}
@@ -51,9 +66,17 @@ func (s *Store) SetAutoDownload(matchID int64, status, errText string) error {
 	return err
 }
 
+// AutoExpiredFresh is the AutoDownloadCounts key of "expired" matches that
+// started after freshSince: they are still retried, so not really gone.
+const AutoExpiredFresh = "expired_fresh"
+
 // AutoDownloadCounts returns the number of auto-download outcomes per status.
-func (s *Store) AutoDownloadCounts() (map[string]int, error) {
-	rows, err := s.db.Query(`SELECT status, COUNT(*) FROM auto_downloads GROUP BY status`)
+func (s *Store) AutoDownloadCounts(freshSince int64) (map[string]int, error) {
+	rows, err := s.db.Query(`
+		SELECT CASE WHEN a.status = 'expired' AND EXISTS (
+		         SELECT 1 FROM od_history h WHERE h.match_id = a.match_id AND h.start_time >= ?)
+		       THEN 'expired_fresh' ELSE a.status END AS st, COUNT(*)
+		FROM auto_downloads a GROUP BY st`, freshSince)
 	if err != nil {
 		return nil, err
 	}

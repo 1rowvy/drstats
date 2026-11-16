@@ -56,6 +56,7 @@ func TestRoundAndPrune(t *testing.T) {
 	for i := int64(1); i <= 5; i++ {
 		hist = append(hist, opendota.HistoryMatch{MatchID: i, StartTime: now - i*3600, HeroID: 1})
 	}
+	hist[4].StartTime = now - 3*86400 // old enough for "expired" to be final
 	if err := st.SaveHistory(7, hist); err != nil {
 		t.Fatal(err)
 	}
