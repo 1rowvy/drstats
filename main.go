@@ -40,7 +40,7 @@ var assets embed.FS
 var trayIcon []byte
 
 func main() {
-	svc := &App{}
+	svc := &App{notifier: newNotifier()}
 	dir, err := dataDir()
 	if err != nil {
 		log.Fatal(err)
@@ -50,7 +50,7 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "drstats",
 		Description: "Dota 2 replay stats",
-		Services:    []application.Service{application.NewService(svc)},
+		Services:    []application.Service{application.NewService(svc), application.NewService(svc.notifier)},
 		Assets: application.AssetOptions{
 			Handler:    application.AssetFileServerFS(assets),
 			Middleware: heroes.Middleware,
@@ -93,6 +93,7 @@ func main() {
 	}
 	win = app.Window.NewWithOptions(opts)
 	setupTray(app, win, keeper, func() bool { return svc.settings().TrayOff }, trayIcon)
+	setupNotifications(app, svc.notifier, win)
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		ensureOnScreen(app, win)
 		switch {

@@ -44,6 +44,9 @@ type Settings struct {
 	// TrayOff makes closing the window quit the app instead of hiding it to
 	// the tray. Off by default = closing hides to the tray.
 	TrayOff bool `json:"tray_off"`
+	// NotifyOff silences the desktop notification shown when a fresh game of
+	// the owner has been parsed. Off by default = notifications on.
+	NotifyOff bool `json:"notify_off"`
 }
 
 // ReplayKeep values.

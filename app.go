@@ -33,6 +33,7 @@ const (
 	EventConstants = "constants:updated" // payload: nil
 	EventImported  = "library:imported"  // payload: ImportResult
 	EventDownload  = "download:progress" // payload: download.Progress
+	EventOpenMatch = "app:open-match"    // payload: match id (a notification was clicked)
 )
 
 func init() {
@@ -45,6 +46,7 @@ func init() {
 	application.RegisterEvent[enrich.Updated](enrich.EventUpdated)
 	application.RegisterEvent[enrich.HistoryUpdated](enrich.EventHistory)
 	application.RegisterEvent[autodl.State](autodl.EventState)
+	application.RegisterEvent[int64](EventOpenMatch)
 }
 
 // App is the single service bound to the frontend.
@@ -63,6 +65,10 @@ type App struct {
 
 	mu  sync.Mutex
 	cfg settings.Settings
+
+	// Post-game notifications (nil notifier: not available).
+	notifier   *notifier
+	announceMu sync.Mutex
 }
 
 // ImportResult reports what an import / scan queued.
@@ -104,6 +110,7 @@ func (a *App) ServiceStartup(ctx context.Context, _ application.ServiceOptions) 
 		if ev, ok := data.(library.ReplayEvent); ok && ev.Status == store.StatusDone {
 			a.od.Queue(ev.MatchID)
 			go a.prune()
+			go a.announce(ev.MatchID)
 		}
 		emit(name, data)
 	})
