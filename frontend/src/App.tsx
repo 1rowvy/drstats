@@ -12,12 +12,14 @@ import { SettingsPage } from "./pages/Settings";
 import { DashboardPage } from "./pages/Dashboard";
 import { HeroPage } from "./pages/HeroPage";
 import { ImportPage } from "./pages/Import";
+import { RankPage } from "./pages/Rank";
 
 type Route =
   | { page: "dashboard" }
   | { page: "matches" }
   | { page: "match"; id: number }
   | { page: "hero"; id: number }
+  | { page: "rank" }
   | { page: "import" }
   | { page: "settings" };
 
@@ -141,6 +143,7 @@ function Shell() {
   const nav: { id: string; label: string; on: boolean; to: Route }[] = [
     { id: "matches", label: "Матчи", on: route.page === "matches" || route.page === "match", to: { page: "matches" } },
     { id: "dashboard", label: "Дашборд", on: route.page === "dashboard", to: { page: "dashboard" } },
+    { id: "rank", label: "Ранг", on: route.page === "rank", to: { page: "rank" } },
     { id: "heroes", label: "Герои", on: route.page === "hero", to: { page: "hero", id: 0 } },
     { id: "import", label: "Импорт", on: route.page === "import", to: { page: "import" } },
   ];
@@ -174,6 +177,7 @@ function Shell() {
             {route.page === "dashboard" && (
               <DashboardPage tick={tick} onMatch={(id) => go({ page: "match", id })} onHero={(id) => go({ page: "hero", id })} />
             )}
+            {route.page === "rank" && <RankPage tick={tick} onMatch={(id) => go({ page: "match", id })} />}
             {route.page === "matches" && (
               <MatchesPage rows={rows} settings={settings} parsing={parsing} onOpen={(id) => go({ page: "match", id })}
                 onImport={importFiles} onScan={scan} onDownload={download} downloading={dlBusy}
