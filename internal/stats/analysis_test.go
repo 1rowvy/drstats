@@ -29,6 +29,30 @@ func TestIdlePeriods(t *testing.T) {
 	}
 }
 
+func TestIdlePeriodsGameStart(t *testing.T) {
+	// Walking to the lane until 40s, farming after: not idle.
+	var ss []parser.Sample
+	lh := 0
+	for i := 0; i <= 30; i++ {
+		tm := float64(i * 5)
+		if tm >= 40 {
+			lh++
+		}
+		ss = append(ss, parser.Sample{T: tm, Alive: true, LastHits: lh})
+	}
+	if got := IdlePeriods(ss, 20); len(got) != 0 {
+		t.Fatalf("idle = %+v", got)
+	}
+	// Doing nothing at all: idle counts from the end of the grace window.
+	for i := range ss {
+		ss[i].LastHits = 0
+	}
+	got := IdlePeriods(ss, 20)
+	if len(got) != 1 || got[0].From != 55 {
+		t.Fatalf("idle (afk) = %+v", got)
+	}
+}
+
 func TestDetectLane(t *testing.T) {
 	var top, mid, jungle []parser.Sample
 	for i := 12; i <= 120; i++ {

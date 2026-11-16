@@ -218,12 +218,19 @@ func goldSources(p parser.Player) []GoldSource {
 	}
 }
 
+// idleGrace is how long after 0:00 the first creep waves may still be walking
+// to the lanes: until the player's first farm/fight (but no later than this)
+// standing around is not idling.
+const idleGrace = 60.0
+
 // IdlePeriods finds alive stretches of at least threshold seconds in which
 // the player neither farmed (last hits, denies, neutral gold) nor fought or
-// hit anything (damage dealt or taken).
+// hit anything (damage dealt or taken). The game start, before the player's
+// first action (at most idleGrace seconds), is not counted.
 func IdlePeriods(ss []parser.Sample, threshold float64) []IdlePeriod {
 	out := []IdlePeriod{}
 	start := -1
+	begun := false
 	flush := func(end int) {
 		if start < 0 || end <= start {
 			start = -1
@@ -243,6 +250,13 @@ func IdlePeriods(ss []parser.Sample, threshold float64) []IdlePeriod {
 		}
 		active := cur.LastHits > prev.LastHits || cur.Denies > prev.Denies || cur.GoldNeutral > prev.GoldNeutral ||
 			cur.DmgOut > prev.DmgOut || cur.DmgIn > prev.DmgIn
+		if !begun {
+			// Creeps are still walking to the lanes.
+			if !active && cur.T < idleGrace {
+				continue
+			}
+			begun = true
+		}
 		if active {
 			flush(i - 1)
 			continue
