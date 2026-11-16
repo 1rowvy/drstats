@@ -379,6 +379,12 @@ button.link.title-link:hover { color: var(--accent); text-decoration: none; }
 .death-card .dc-line { font-size: 13.5px; }
 .death-card .dc-line span { color: var(--dim); }
 .death-card .dc-tags { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.dc-tags { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.play-lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 18px; }
+.play-lines > div { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.play-lines > div span { font-size: 11px; }
+.tag.win-tag { background: var(--win-bg); color: var(--win); }
+button.tag { border: none; cursor: pointer; }
 
 /* tables */
 .table { width: 100%; border-collapse: collapse; }
