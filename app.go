@@ -357,6 +357,16 @@ func (a *App) Match(matchID int64, focus int) (*stats.MatchView, error) {
 	return stats.BuildMatchView(a.st, matchID, a.accountID(), focus, stats.Options{HitWindow: cfg.HitWindowSec, IdleThreshold: cfg.IdleThreshold})
 }
 
+// Plan returns the weekly plan with its progress (no plan: Plan is nil).
+func (a *App) Plan() (stats.PlanView, error) {
+	return stats.GetPlan(a.st, a.accountID(), a.settings().IdleThreshold, time.Now())
+}
+
+// NewPlan replaces the weekly plan with goals picked from the recent games.
+func (a *App) NewPlan() (stats.PlanView, error) {
+	return stats.MakePlan(a.st, a.accountID(), a.settings().IdleThreshold, time.Now())
+}
+
 // Dashboard returns aggregates over "my" matches under a filter (hero page:
 // filter by hero).
 func (a *App) Dashboard(f stats.Filter) (*stats.Dashboard, error) {
@@ -364,7 +374,8 @@ func (a *App) Dashboard(f stats.Filter) (*stats.Dashboard, error) {
 	if n, err := a.names.Names(); err == nil {
 		byID = n.HeroByID
 	}
-	return stats.BuildDashboard(a.st, a.accountID(), f, byID)
+	cfg := a.settings()
+	return stats.BuildDashboard(a.st, a.accountID(), f, byID, stats.Options{HitWindow: cfg.HitWindowSec, IdleThreshold: cfg.IdleThreshold})
 }
 
 // Progress returns the parse queue state.

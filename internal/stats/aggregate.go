@@ -178,6 +178,7 @@ type Dashboard struct {
 	Extras    Extras             `json:"extras"`
 	Lanes     LaneStats          `json:"lanes"` // against the lane opponent
 	Flow      FlowStats          `json:"flow"`  // phases, thrown / comeback games, game length
+	Farm      FarmStats          `json:"farm"`  // farm efficiency and idle time
 	// Replays is how many of the filtered matches have a parsed replay
 	// (replay-only blocks are computed over those).
 	Replays int `json:"replays"`
@@ -189,12 +190,13 @@ func worldBounds() [2]float64 { return [2]float64{parser.WorldMin, parser.WorldM
 
 // BuildDashboard aggregates the account's matches under a filter. heroByID
 // names the heroes of OpenDota history matches (constants hero_by_id).
-func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[int]string) (*Dashboard, error) {
+func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[int]string, opt Options) (*Dashboard, error) {
 	d := &Dashboard{Filter: f, Averages: []MetricAvg{}, ByHero: []Bucket{}, ByWeekday: []Bucket{}, ByHour: []Bucket{},
 		ByLane: []Bucket{}, Trend: []TrendGame{}, Habits: []Habit{}, Recent: []Game{}, Deaths: []store.DeathPoint{},
 		Heroes: []HeroOption{}, Modes: []int{}, World: worldBounds(), Unknown: accountID == 0,
 		Lanes: LaneStats{Matchups: []LaneMatchup{}},
-		Flow:  FlowStats{Phases: []PhaseStats{}, Thrown: []SwingGame{}, Comebacks: []SwingGame{}, ByLength: []Bucket{}}}
+		Flow:  FlowStats{Phases: []PhaseStats{}, Thrown: []SwingGame{}, Comebacks: []SwingGame{}, ByLength: []Bucket{}},
+		Farm:  FarmStats{Phases: []FarmPhase{}, Zones: []IdleZone{}}}
 	all, err := loadGames(st, accountID)
 	if err != nil {
 		return nil, err
@@ -273,6 +275,11 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[in
 		return nil, err
 	}
 	d.Flow = buildFlow(games, flows)
+	series, err := st.FarmSeries(accountID)
+	if err != nil {
+		return nil, err
+	}
+	d.Farm = buildFarmStats(games, farmGames(games, series, opt.IdleThreshold), opt.IdleThreshold)
 	if accountID != 0 {
 		fast, err := st.FastestItems(accountID)
 		if err != nil {

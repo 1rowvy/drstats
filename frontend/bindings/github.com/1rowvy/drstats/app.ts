@@ -144,6 +144,13 @@ export function Names(): $CancellablePromise<constants$0.Names | null> {
 }
 
 /**
+ * NewPlan replaces the weekly plan with goals picked from the recent games.
+ */
+export function NewPlan(): $CancellablePromise<stats$0.PlanView> {
+    return $Call.ByID(153608614);
+}
+
+/**
  * PickDirectory shows a folder chooser; "" when cancelled.
  */
 export function PickDirectory(title: string): $CancellablePromise<string> {
@@ -155,6 +162,13 @@ export function PickDirectory(title: string): $CancellablePromise<string> {
  */
 export function PickMapImage(): $CancellablePromise<string> {
     return $Call.ByID(829118235);
+}
+
+/**
+ * Plan returns the weekly plan with its progress (no plan: Plan is nil).
+ */
+export function Plan(): $CancellablePromise<stats$0.PlanView> {
+    return $Call.ByID(224320538);
 }
 
 /**

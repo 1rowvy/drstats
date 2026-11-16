@@ -222,6 +222,11 @@ export interface Dashboard {
     "flow": FlowStats;
 
     /**
+     * farm efficiency and idle time
+     */
+    "farm": FarmStats;
+
+    /**
      * Replays is how many of the filtered matches have a parsed replay
      * (replay-only blocks are computed over those).
      */
@@ -310,6 +315,77 @@ export interface Farm {
      * Ticks are the replay ticks of T (for demo_gototick).
      */
     "ticks": number[] | null;
+}
+
+/**
+ * FarmPhase is farm efficiency in one game phase, averaged over games.
+ */
+export interface FarmPhase {
+    /**
+     * lane / mid / late
+     */
+    "key": string;
+    "games": number;
+
+    /**
+     * creep + neutral gold per minute
+     */
+    "farm_gpm": number;
+
+    /**
+     * lane creeps
+     */
+    "creep_gpm": number;
+
+    /**
+     * jungle
+     */
+    "neutral_gpm": number;
+
+    /**
+     * share of alive time without farm or fight
+     */
+    "idle_pct": number;
+
+    /**
+     * share of time dead
+     */
+    "dead_pct": number;
+}
+
+/**
+ * FarmStats summarise farm efficiency over the filtered games with a replay.
+ */
+export interface FarmStats {
+    "games": number;
+
+    /**
+     * idle threshold, seconds
+     */
+    "threshold": number;
+    "phases": FarmPhase[] | null;
+
+    /**
+     * seconds
+     */
+    "idle_per_game": number;
+
+    /**
+     * biggest first
+     */
+    "zones": IdleZone[] | null;
+
+    /**
+     * Winrate of the games with less / more idle share than the median.
+     */
+    "low_idle": Bucket;
+    "high_idle": Bucket;
+
+    /**
+     * Farm GPM of the last HabitRecent games against the earlier ones (0 when too few).
+     */
+    "recent_farm_gpm": number;
+    "before_farm_gpm": number;
 }
 
 /**
@@ -534,6 +610,48 @@ export interface Game {
 }
 
 /**
+ * GoalGame is one game's value for a goal.
+ */
+export interface GoalGame {
+    "match_id": number;
+    "value": number;
+    "met": boolean;
+}
+
+/**
+ * GoalProgress is a goal with the games played since the plan started.
+ */
+export interface GoalProgress {
+    "key": string;
+    "higher_better": boolean;
+
+    /**
+     * your average when the plan was made
+     */
+    "base": number;
+
+    /**
+     * halfway to your best games
+     */
+    "target": number;
+
+    /**
+     * average since the start, nil without games
+     */
+    "current": number | null;
+
+    /**
+     * games that met the target
+     */
+    "hits": number;
+
+    /**
+     * oldest first
+     */
+    "games": GoalGame[] | null;
+}
+
+/**
  * Gold is the Gold tab: sources, farm-over-time and idle periods.
  */
 export interface Gold {
@@ -646,6 +764,18 @@ export interface IdlePeriod {
      * Region is the map zone of that position (see Region).
      */
     "region": string;
+}
+
+/**
+ * IdleZone is where idle time is spent.
+ */
+export interface IdleZone {
+    "region": string;
+
+    /**
+     * average per game
+     */
+    "sec": number;
 }
 
 /**
@@ -1014,6 +1144,67 @@ export interface PhaseStats {
      */
     "win_gained": number;
     "win_lost": number;
+}
+
+/**
+ * Plan is the stored weekly plan.
+ */
+export interface Plan {
+    /**
+     * unix
+     */
+    "start": number;
+    "end": number;
+    "goals": PlanGoal[] | null;
+}
+
+/**
+ * PlanGoal is one goal of a plan.
+ */
+export interface PlanGoal {
+    "key": string;
+    "higher_better": boolean;
+
+    /**
+     * your average when the plan was made
+     */
+    "base": number;
+
+    /**
+     * halfway to your best games
+     */
+    "target": number;
+}
+
+/**
+ * PlanView is what the dashboard shows.
+ */
+export interface PlanView {
+    /**
+     * nil when there is none
+     */
+    "plan": Plan | null;
+    "goals": GoalProgress[] | null;
+
+    /**
+     * games since the start
+     */
+    "games": number;
+
+    /**
+     * the week is over
+     */
+    "expired": boolean;
+
+    /**
+     * no Steam ID
+     */
+    "unknown": boolean;
+
+    /**
+     * Enough is false when there are too few parsed games to build a plan.
+     */
+    "enough": boolean;
 }
 
 /**

@@ -1,6 +1,10 @@
 package store
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/1rowvy/drstats/internal/parser"
+)
 
 // LeadPoint is the team net worth lead at a minute, from the account's side.
 type LeadPoint struct {
@@ -131,6 +135,34 @@ func (s *Store) GameFlows(accountID uint32) (map[int64]*GameFlow, error) {
 			}
 		}
 		get(id).Deaths = append(get(id).Deaths, fd)
+	}
+	return out, rows.Err()
+}
+
+// FarmSeries returns the account's full sample series per parsed match
+// (position, alive, farm counters, damage), for idle and farm stats.
+func (s *Store) FarmSeries(accountID uint32) (map[int64][]parser.Sample, error) {
+	out := map[int64][]parser.Sample{}
+	if accountID == 0 {
+		return out, nil
+	}
+	rows, err := s.db.Query(`
+		SELECT s.match_id, s.t, s.x, s.y, s.alive, s.last_hits, s.denies, s.gold_creep, s.gold_neutral, s.dmg_out, s.dmg_in
+		FROM players me
+		JOIN series s ON s.match_id = me.match_id AND s.player_id = me.player_id
+		WHERE me.account_id = ?
+		ORDER BY s.match_id, s.t`, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var x parser.Sample
+		if err := rows.Scan(&id, &x.T, &x.X, &x.Y, &x.Alive, &x.LastHits, &x.Denies, &x.GoldCreep, &x.GoldNeutral, &x.DmgOut, &x.DmgIn); err != nil {
+			return nil, err
+		}
+		out[id] = append(out[id], x)
 	}
 	return out, rows.Err()
 }
