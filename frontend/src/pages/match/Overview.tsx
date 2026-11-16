@@ -3,6 +3,8 @@ import type { MatchView, PlayerView } from "../../api";
 import { clock, kfmt, lowerFirst, num, pct, RADIANT, regionName, upperFirst } from "../../format";
 import { useNames } from "../../names";
 import { TickButton } from "../../components/ui";
+import { MatchPhasesCard } from "../../components/Flow";
+import { useDashboard } from "../Dashboard";
 import { heroOf, keyItems, lastOf, objectiveLabel, tickAt, useFocus, useWidth } from "./common";
 
 // ---------------------------------------------------------------- summary line
@@ -56,6 +58,7 @@ export function OverviewTab({ view }: { view: MatchView }) {
   return (
     <div>
       <FlowCard view={view} />
+      <Phases view={view} />
       <Moments view={view} />
       <Verdict view={view} />
     </div>
@@ -250,6 +253,21 @@ function FlowCard({ view }: { view: MatchView }) {
         <span><i style={{ background: "var(--blue)" }} />Наши объекты</span>
         <span><i style={{ background: "var(--loss)", opacity: .55 }} />Потерянные</span>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- phases
+
+function Phases({ view }: { view: MatchView }) {
+  const names = useNames();
+  const { me } = useFocus(view);
+  // Usual numbers on this hero over parsed replays (only for your own games).
+  const { d } = useDashboard({ hero_id: view.is_me ? me.hero_id : -1, days: 0, last: 0, result: "", mode: 0, lane: "", source: "" }, 0);
+  const avg = view.is_me && d && d.flow.games >= 3 ? d.flow.phases ?? [] : null;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <MatchPhasesCard phases={view.phases ?? []} avg={avg} swing={view.swing ?? null} heroName={names.hero(me.hero_name)} own={view.is_me} />
     </div>
   );
 }

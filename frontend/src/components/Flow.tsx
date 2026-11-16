@@ -150,3 +150,91 @@ function LengthCard({ buckets }: { buckets: Bucket[] }) {
     </div>
   );
 }
+
+// ---------------------------------------------------------------- one match
+
+type PhaseRow = { label: string; key: "gpm" | "xpm" | "lhpm" | "deaths10" | "kp" | "lead_delta"; fmt: (v: number) => string; lower?: boolean; minDiff: number };
+const MATCH_ROWS: PhaseRow[] = [
+  { label: "GPM", key: "gpm", fmt: (v) => String(Math.round(v)), minDiff: 40 },
+  { label: "XPM", key: "xpm", fmt: (v) => String(Math.round(v)), minDiff: 40 },
+  { label: "Добиваний в минуту", key: "lhpm", fmt: (v) => v.toFixed(1), minDiff: 0.5 },
+  { label: "Смертей за 10 мин", key: "deaths10", fmt: (v) => v.toFixed(1), lower: true, minDiff: 0.7 },
+  { label: "Участие в убийствах", key: "kp", fmt: (v) => pct(v), minDiff: 0.1 },
+  { label: "Преимущество команды", key: "lead_delta", fmt: (v) => kfmt(v, true), minDiff: Infinity },
+];
+
+/** Phases of one match against your usual numbers on the hero. */
+export function MatchPhasesCard({ phases, avg, swing, heroName, own }: {
+  phases: PhaseStats[]; avg: PhaseStats[] | null; swing: SwingGame | null; heroName: string; own: boolean;
+}) {
+  const shown = phases.filter((p) => PHASES[p.key]);
+  if (!shown.some((p) => p.games)) return null;
+  const avgOf = (key: string) => avg?.find((a) => a.key === key && a.games >= 3);
+  // Notes: biggest drops against the usual numbers, the phase where the team lost most.
+  const notes: { text: string; good: boolean; w: number }[] = [];
+  for (const p of shown) {
+    const a = avgOf(p.key);
+    if (!p.games || !a) continue;
+    for (const r of MATCH_ROWS) {
+      if (r.key === "lead_delta" || (r.key === "kp" && p.kp < 0)) continue;
+      const d = p[r.key] - a[r.key];
+      if (Math.abs(d) < r.minDiff) continue;
+      const better = r.lower ? d < 0 : d > 0;
+      notes.push({
+        good: better, w: Math.abs(d) / r.minDiff,
+        text: `${PHASES[p.key].when}: ${r.label.toLowerCase()} ${r.fmt(p[r.key])} против обычных ${r.fmt(a[r.key])}`,
+      });
+    }
+  }
+  const worst = shown.filter((p) => p.games).reduce<PhaseStats | null>((a, b) => (!a || b.lead_delta < a.lead_delta ? b : a), null);
+  const lines = [...notes].sort((a, b) => b.w - a.w).slice(0, 4);
+  return (
+    <div className="card">
+      <div className="card-head"><h2>Фазы игры</h2>{avg && <span className="meta">мелким — твоё среднее на {heroName}</span>}</div>
+      <table className="phase-table">
+        <thead>
+          <tr><th />{shown.map((p) => (
+            <th key={p.key} className={p === worst && p.lead_delta < 0 ? "loss" : ""}>{PHASES[p.key].label}<small>{PHASES[p.key].span}</small></th>
+          ))}</tr>
+        </thead>
+        <tbody>
+          {MATCH_ROWS.map((r) => (
+            <tr key={r.key}>
+              <td>{r.label}</td>
+              {shown.map((p) => {
+                if (!p.games) return <td key={p.key} className="faint">—</td>;
+                const v = p[r.key];
+                if (r.key === "kp" && v < 0) return <td key={p.key} className="faint">убийств не было</td>;
+                const a = avgOf(p.key);
+                let tone = "";
+                if (r.key === "lead_delta") tone = v >= 0 ? "win" : "loss";
+                else if (a && Math.abs(v - a[r.key]) >= r.minDiff) tone = (r.lower ? v < a[r.key] : v > a[r.key]) ? "win" : "loss";
+                return (
+                  <td key={p.key} className="mono">
+                    <span className={tone}>{r.fmt(v)}</span>
+                    {a && r.key !== "lead_delta" && <small className="avg">{r.fmt(a[r.key])}</small>}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {swing && (
+        <div className={`swing-note ${swing.win ? "win" : "loss"}`}>
+          {swing.win ? "Камбэк" : "Слитая игра"}: {swing.win ? "отставали" : "вели"} на {kfmt(swing.peak)} к {clock(swing.peak_t)}
+          {swing.flip_t >= 0 ? `, к ${clock(swing.flip_t)} ${swing.win ? "вышли вперёд" : "преимущество ушло"}` : ""}.
+          {" "}За это время ты умер {swing.deaths} {plural(swing.deaths, "раз", "раза", "раз")}
+          {swing.kp >= 0 ? `, участвовал в ${pct(swing.kp)} убийств` : ""}
+          {swing.gpm > 0 && swing.game_gpm > 0 ? `, GPM ${Math.round(swing.gpm)} (за игру ${Math.round(swing.game_gpm)})` : ""}.
+        </div>
+      )}
+      {lines.length > 0 && (
+        <ul className="phase-notes">
+          {lines.map((n) => <li key={n.text} className={n.good ? "good" : "bad"}>{n.text}</li>)}
+        </ul>
+      )}
+      {own && !avg && <div className="note">Твоё среднее на этом герое появится, когда наберётся хотя бы 3 разобранные игры.</div>}
+    </div>
+  );
+}

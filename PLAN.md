@@ -118,6 +118,7 @@ games on any hero — per match and aggregated. Working name `drstats`.
 - [x] Dashboard: last 10 games, tilt card (game-in-session winrate, after win / after loss, current streak; session = gap ≤ 1 h), habits (last 10 vs earlier) over all heroes
 - [x] Lane analysis: match tab «Линия» (verdict at 10:00 = NW diff + XP diff / 2, ±500 → won / lost; head to head at 5:00 / 10:00, both sides of the lane, 0–10 min charts, lane deaths, usual result vs the opponent hero); lane stats card on dashboard and hero page (replays only)
 - [x] Game flow on dashboard and hero page: phases lane 0–10 / mid 10–25 / late 25+ (GPM, XPM, LH/min, deaths per 10 min, KP, team lead change, winrate if the phase was won / lost), thrown / comeback games (team lead or deficit ≥ 5k; your deaths, KP and GPM while it swung), winrate by game length (all games)
+- [x] Match «Разбор»: phases of the game against your usual numbers on the hero, thrown / comeback note (same computation as the dashboard)
 
 ### Auto-download of missing replays
 - [x] Store: `auto_downloads`, `replays.pruned_at`, missing-replay query; re-parse skips pruned
