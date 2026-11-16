@@ -93,6 +93,17 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
       toast(String(e?.message ?? e), true);
     }
   };
+  const toggleNotify = async (on: boolean) => {
+    try {
+      const cur = await Api.GetSettings();
+      const saved = await Api.SaveSettings({ ...cur, notify_off: !on });
+      setS({ ...s, notify_off: saved.notify_off });
+      onSaved(saved);
+      toast(on ? "Уведомления после игры включены" : "Уведомления после игры выключены");
+    } catch (e: any) {
+      toast(String(e?.message ?? e), true);
+    }
+  };
   const update = () => Api.CheckForUpdates().catch((e) => toast(String(e?.message ?? e), true));
 
   return (
@@ -178,6 +189,13 @@ export function SettingsPage({ onSaved, toast }: { onSaved: (s: Settings) => voi
         </label>
         <small style={{ display: "block", marginTop: -8 }}>
           Крестик прячет окно в трей, приложение продолжает работать. Открыть — клик по иконке в трее, выйти — «Выход» в её меню.
+        </small>
+        <label className="row" style={{ flexDirection: "row", alignItems: "center", marginTop: 16 }}>
+          <input type="checkbox" checked={!s.notify_off} onChange={(e) => toggleNotify(e.target.checked)} />
+          <span>Уведомление после игры</span>
+        </label>
+        <small style={{ display: "block", marginTop: -8 }}>
+          Когда свежая игра разобрана: результат, оценка, главная причина и цели плана. Клик открывает матч.
         </small>
       </div>
 

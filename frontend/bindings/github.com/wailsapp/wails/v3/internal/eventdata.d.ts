@@ -24,6 +24,7 @@ import type * as library$0 from "../../../../1rowvy/drstats/internal/library/mod
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "app:open-match": number;
             "autodl:state": autodl$0.State;
             "constants:updated": void;
             "download:progress": download$0.Progress;

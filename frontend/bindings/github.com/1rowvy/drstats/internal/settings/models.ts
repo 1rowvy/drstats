@@ -75,4 +75,10 @@ export interface Settings {
      * the tray. Off by default = closing hides to the tray.
      */
     "tray_off": boolean;
+
+    /**
+     * NotifyOff silences the desktop notification shown when a fresh game of
+     * the owner has been parsed. Off by default = notifications on.
+     */
+    "notify_off": boolean;
 }

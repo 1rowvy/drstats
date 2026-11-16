@@ -85,6 +85,8 @@ function Shell() {
         setParsing((p) => ({ ...p, [ev.replay_id]: ev.fraction }));
       }),
       Events.On(AppEvents.LibraryProgress, (e) => setProgress(e.data)),
+      // A post-game notification was clicked: open that match.
+      Events.On(AppEvents.AppOpenMatch, (e) => go({ page: "match", id: Number(e.data) })),
       Events.On(AppEvents.OpendotaUpdated, reloadSoon),
       Events.On(AppEvents.OpendotaHistory, reloadSoon),
       Events.On(AppEvents.LibraryImported, (e) => {
@@ -104,7 +106,7 @@ function Shell() {
       }),
     ];
     return () => offs.forEach((off) => off());
-  }, [reload, reloadSoon, showToast]);
+  }, [reload, reloadSoon, showToast, go]);
 
   const importFiles = async () => {
     try {
