@@ -6,6 +6,7 @@ import { useNames } from "../names";
 import { HeroBadge } from "../components/HeroBadge";
 import { ResultPill } from "../components/ui";
 import { HabitsCard } from "../components/Habits";
+import { LaneStatsCard } from "../components/LaneStats";
 
 const ACTIVITY_WEEKS = 12;
 const SOURCE_KEY = "dashboard.source";
@@ -146,6 +147,7 @@ function Body({ d, days, setDays, onMatch, onHero }: {
         <TiltCard d={d} />
         <HabitsCard habits={d.habits ?? []} empty="Нужно хотя бы 15 матчей." />
       </div>
+      <div style={{ marginTop: 14 }}><LaneStatsCard s={d.lanes} /></div>
 
       {(d.recent ?? []).length > 0 && <>
         <div className="section-head"><h2>Последние игры</h2></div>

@@ -5,6 +5,7 @@ import { useNames } from "../names";
 import { HeroBadge, initials } from "../components/HeroBadge";
 import { MapCanvas } from "../components/MapCanvas";
 import { HabitsCard } from "../components/Habits";
+import { LaneStatsCard } from "../components/LaneStats";
 import { DayParts, useDashboard } from "./Dashboard";
 
 const CONSUMABLE = /^(tango|flask|clarity|ward_|tpscroll|smoke_of_deceit|dust|enchanted_mango|faerie_fire|blood_grenade|branches|tome_of_knowledge)/;
@@ -87,6 +88,7 @@ export function HeroPage({ heroID, tick, onHero, onMatch }: {
             <HabitsCard habits={d.habits ?? []} empty="Нужно хотя бы 15 матчей на герое." />
             <GpmCard d={d} />
           </div>
+          <div style={{ marginTop: 14 }}><LaneStatsCard s={d.lanes} /></div>
           <div className="grid2" style={{ marginTop: 14 }}>
             <div className="card">
               <div className="card-head"><h2>Винрейт по времени суток</h2></div>

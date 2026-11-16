@@ -506,3 +506,30 @@ details.more summary:hover { color: var(--text); }
 .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 30; }
 .modal { background: var(--panel); border: 1px solid var(--line-2); border-radius: 16px; padding: 20px; width: min(640px, 90vw); }
 .modal pre { white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: 12px; background: var(--panel-2); padding: 12px; border-radius: 9px; color: var(--loss); max-height: 300px; overflow: auto; }
+
+/* ---- lane tab ---- */
+.lane-verdict { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; align-items: center; }
+.lane-verdict h1 { margin: 6px 0 6px; }
+.lane-verdict ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.lane-verdict li { font-size: 13px; padding-left: 18px; position: relative; }
+.lane-verdict li::before { content: ""; position: absolute; left: 0; top: 6px; width: 8px; height: 8px; border-radius: 50%; }
+.lane-verdict li.good::before { background: var(--win); }
+.lane-verdict li.bad::before { background: var(--loss); }
+@media (max-width: 760px) { .lane-verdict { grid-template-columns: 1fr; } }
+.lane-h2h { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lane-h2h th { color: var(--faint); font-weight: 500; font-size: 11px; text-align: right; padding: 4px 6px; }
+.lane-h2h tr.sub th { font-size: 10px; }
+.lane-h2h td { padding: 7px 6px; text-align: right; border-top: 1px solid var(--line); }
+.lane-h2h td:first-child, .lane-h2h th:first-child { text-align: left; color: var(--dim); }
+.lane-h2h td[colspan] { text-align: right; }
+.lane-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.lane-side { display: flex; flex-direction: column; gap: 8px; }
+.lane-hero { display: grid; grid-template-columns: 30px 1fr auto; gap: 9px; align-items: center; background: var(--panel-2); border-radius: 10px; padding: 7px 10px; border: 1px solid transparent; }
+.lane-hero.me { border-color: var(--accent); }
+.lane-hero.opp { border-color: rgba(242,112,95,.5); }
+.lane-hero b { display: block; font-size: 12.5px; font-weight: 600; }
+.lane-hero small { color: var(--faint); font-size: 10.5px; }
+.lane-death { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.lane-death:first-of-type { border-top: 0; }
+.lane-mu { display: grid; grid-template-columns: 26px 1fr auto 52px; gap: 8px; align-items: center; font-size: 12.5px; padding: 4px 0; }
+.lane-mu .mono:last-child { text-align: right; }

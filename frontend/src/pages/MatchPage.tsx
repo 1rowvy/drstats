@@ -10,12 +10,14 @@ import { ResultPill, Ring, Stat, TickButton } from "../components/ui";
 import { AbilitiesTab, VisionTab } from "./MatchTabs";
 import { OverviewTab, summaryLine } from "./match/Overview";
 import { FarmTab } from "./match/Farm";
+import { LaneTab } from "./match/Lane";
 import { FightsTab } from "./match/Fights";
 
-type Tab = "overview" | "farm" | "fights" | "deaths" | "abilities" | "vision";
+type Tab = "overview" | "lane" | "farm" | "fights" | "deaths" | "abilities" | "vision";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Разбор" },
+  { id: "lane", label: "Линия" },
   { id: "farm", label: "Фарм" },
   { id: "fights", label: "Драки" },
   { id: "deaths", label: "Смерти" },
@@ -100,6 +102,7 @@ export function MatchPage({ matchID, lh10Goal, onBack, onHero }: {
           <Scoreboard view={view} onPick={setFocus} />
         </div>
       )}
+      {me && tab === "lane" && <LaneTab view={view} goal={lh10Goal} />}
       {me && tab === "farm" && <FarmTab view={view} goal={lh10Goal} />}
       {me && tab === "fights" && <FightsTab view={view} />}
       {me && tab === "deaths" && <DeathsTab view={view} />}
