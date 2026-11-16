@@ -28,6 +28,10 @@ type Game struct {
 	Lane string `json:"lane"`
 	// OpenDota marks a match known only from the OpenDota history (no replay).
 	OpenDota bool `json:"opendota"`
+	// Lane opponent at 10:00 (nil when unknown) and the lane verdict.
+	Opp        *LaneOpp `json:"opp"`
+	LaneScore  float64  `json:"lane_score"`
+	LaneResult string   `json:"lane_result"` // LaneWon / LaneEven / LaneLost, "" when unknown
 }
 
 // Metric definitions for averages, trends and habits.
@@ -172,6 +176,7 @@ type Dashboard struct {
 	Total     int                `json:"total"`   // matches before filtering
 	Unknown   bool               `json:"unknown"` // no Steam ID configured
 	Extras    Extras             `json:"extras"`
+	Lanes     LaneStats          `json:"lanes"` // against the lane opponent
 	// Replays is how many of the filtered matches have a parsed replay
 	// (replay-only blocks are computed over those).
 	Replays int `json:"replays"`
@@ -186,7 +191,8 @@ func worldBounds() [2]float64 { return [2]float64{parser.WorldMin, parser.WorldM
 func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[int]string) (*Dashboard, error) {
 	d := &Dashboard{Filter: f, Averages: []MetricAvg{}, ByHero: []Bucket{}, ByWeekday: []Bucket{}, ByHour: []Bucket{},
 		ByLane: []Bucket{}, Trend: []TrendGame{}, Habits: []Habit{}, Recent: []Game{}, Deaths: []store.DeathPoint{},
-		Heroes: []HeroOption{}, Modes: []int{}, World: worldBounds(), Unknown: accountID == 0}
+		Heroes: []HeroOption{}, Modes: []int{}, World: worldBounds(), Unknown: accountID == 0,
+		Lanes: LaneStats{Matchups: []LaneMatchup{}}}
 	all, err := loadGames(st, accountID)
 	if err != nil {
 		return nil, err
@@ -259,6 +265,7 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[in
 	}
 
 	d.Extras = buildExtras(games, time.Now())
+	d.Lanes = laneStats(games)
 	if accountID != 0 {
 		fast, err := st.FastestItems(accountID)
 		if err != nil {
@@ -312,6 +319,11 @@ func loadGames(st *store.Store, accountID uint32) ([]Game, error) {
 	for i, r := range rows {
 		all[i] = Game{GameRow: r, Win: r.Team == r.Winner, Lane: DetectLane(r.LaneEarly)}
 	}
+	rivals, err := st.LaneRivals(accountID)
+	if err != nil {
+		return nil, err
+	}
+	attachLaneOpps(all, rivals)
 	return all, nil
 }
 

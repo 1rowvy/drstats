@@ -206,20 +206,29 @@ func teamOf(players []parser.Player, pid int) int {
 // focused player (mean distance over samples where both were alive), or -1.
 func LaneOpponent(players []parser.Player, byPID map[int][]parser.Sample, focus int) int {
 	team := teamOf(players, focus)
+	cands := map[int][]parser.Sample{}
+	for _, p := range players {
+		if p.Team != team && p.Team != 0 {
+			cands[p.PlayerID] = byPID[p.PlayerID]
+		}
+	}
+	return closestRival(byPID[focus], cands)
+}
+
+// closestRival picks the candidate that stayed closest to mine on average
+// during the laning stage (both alive, at least 10 shared samples); -1 if none.
+func closestRival(mineSamples []parser.Sample, cands map[int][]parser.Sample) int {
 	mine := map[float64]parser.Sample{}
-	for _, s := range byPID[focus] {
+	for _, s := range mineSamples {
 		if s.T >= laneFrom && s.T <= laneTo && s.Alive {
 			mine[s.T] = s
 		}
 	}
 	best, bestDist := -1, math.Inf(1)
-	for _, p := range players {
-		if p.Team == team || p.Team == 0 {
-			continue
-		}
+	for pid, ss := range cands {
 		var sum float64
 		var n int
-		for _, s := range byPID[p.PlayerID] {
+		for _, s := range ss {
 			m, ok := mine[s.T]
 			if !ok || !s.Alive {
 				continue
@@ -230,8 +239,8 @@ func LaneOpponent(players []parser.Player, byPID map[int][]parser.Sample, focus 
 		if n < 10 {
 			continue
 		}
-		if d := sum / float64(n); d < bestDist {
-			best, bestDist = p.PlayerID, d
+		if d := sum / float64(n); d < bestDist || (d == bestDist && pid < best) {
+			best, bestDist = pid, d
 		}
 	}
 	return best

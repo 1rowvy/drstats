@@ -213,3 +213,50 @@ func (s *Store) FastestItems(accountID uint32) ([]FastItem, error) {
 	}
 	return out, rows.Err()
 }
+
+// Rival is an enemy of the account in a match with its laning-stage samples
+// (1:00–10:00), for picking the lane opponent across all matches.
+type Rival struct {
+	PlayerID int
+	HeroName string
+	Samples  []parser.Sample
+}
+
+// LaneRivals returns, per match the account played, the enemy players and
+// their laning-stage samples.
+func (s *Store) LaneRivals(accountID uint32) (map[int64][]Rival, error) {
+	out := map[int64][]Rival{}
+	if accountID == 0 {
+		return out, nil
+	}
+	rows, err := s.db.Query(`
+		SELECT e.match_id, e.player_id, e.hero_name,
+		       s.t, s.x, s.y, s.alive, s.level, s.net_worth, s.total_xp, s.last_hits, s.denies
+		FROM players me
+		JOIN players e ON e.match_id = me.match_id AND e.team <> me.team AND e.team IN (2, 3)
+		JOIN series s ON s.match_id = e.match_id AND s.player_id = e.player_id AND s.t BETWEEN 60 AND 600
+		WHERE me.account_id = ?
+		ORDER BY e.match_id, e.player_id, s.t`, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var pid int
+		var hero string
+		var smp parser.Sample
+		if err := rows.Scan(&id, &pid, &hero, &smp.T, &smp.X, &smp.Y, &smp.Alive, &smp.Level,
+			&smp.NetWorth, &smp.TotalXP, &smp.LastHits, &smp.Denies); err != nil {
+			return nil, err
+		}
+		smp.PlayerID = pid
+		rs := out[id]
+		if n := len(rs); n == 0 || rs[n-1].PlayerID != pid {
+			rs = append(rs, Rival{PlayerID: pid, HeroName: hero})
+		}
+		rs[len(rs)-1].Samples = append(rs[len(rs)-1].Samples, smp)
+		out[id] = rs
+	}
+	return out, rows.Err()
+}

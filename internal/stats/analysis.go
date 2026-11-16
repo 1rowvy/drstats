@@ -49,6 +49,30 @@ type Laning struct {
 	Kills    int            `json:"kills"`     // kills by focus before 10:00
 	Assists  int            `json:"assists"`   // assists before 10:00
 	LaneEnds float64        `json:"lane_ends"` // end of the laning window, seconds
+	// Head to head with the lane opponent before 10:00.
+	KilledOpp   int `json:"killed_opp"`    // opponent deaths where focus got the kill
+	KilledByOpp int `json:"killed_by_opp"` // focus deaths where the opponent got the kill
+	// Lane verdict at 10:00 (see LaneScore); Outcome is "" without an opponent sample.
+	Score   float64 `json:"score"`
+	Outcome string  `json:"outcome"`
+	// Heroes is everyone who laned with the focus or the opponent (both
+	// sides), with their 10:00 values: the 2v2 / 1v1 picture of the lane.
+	Heroes []LaneHero `json:"heroes"`
+}
+
+// LaneHero is one hero of the lane at 10:00.
+type LaneHero struct {
+	PlayerID int    `json:"pid"`
+	HeroName string `json:"hero_name"`
+	Team     int    `json:"team"`
+	Lane     string `json:"lane"`
+	LH       int    `json:"lh"`
+	DN       int    `json:"dn"`
+	NetWorth int    `json:"nw"`
+	XP       int    `json:"xp"`
+	Level    int    `json:"level"`
+	Kills    int    `json:"kills"`  // before 10:00
+	Deaths   int    `json:"deaths"` // before 10:00
 }
 
 func sampleAt(ss []parser.Sample, t float64) (parser.Sample, bool) {
@@ -63,7 +87,7 @@ func sampleAt(ss []parser.Sample, t float64) (parser.Sample, bool) {
 }
 
 func buildLaning(m *parser.Match, byPID map[int][]parser.Sample, focus, opp int) Laning {
-	l := Laning{Lane: DetectLane(byPID[focus]), LaneEnds: laneTo, Deaths: []parser.Death{}, Snaps: []LaneSnap{}}
+	l := Laning{Lane: DetectLane(byPID[focus]), LaneEnds: laneTo, Deaths: []parser.Death{}, Snaps: []LaneSnap{}, Heroes: []LaneHero{}}
 	if opp >= 0 {
 		l.OppLane = DetectLane(byPID[opp])
 	}
@@ -79,6 +103,10 @@ func buildLaning(m *parser.Match, byPID map[int][]parser.Sample, focus, opp int)
 			}
 		}
 		l.Snaps = append(l.Snaps, snap)
+		if t == 600 && snap.Opp != nil {
+			l.Score = LaneScore(snap.NetWorth, snap.Opp.NetWorth, snap.XP, snap.Opp.XP)
+			l.Outcome = LaneOutcome(l.Score)
+		}
 	}
 	for _, d := range m.Deaths {
 		if d.T > laneTo {
@@ -86,6 +114,12 @@ func buildLaning(m *parser.Match, byPID map[int][]parser.Sample, focus, opp int)
 		}
 		if d.VictimPID == focus {
 			l.Deaths = append(l.Deaths, d)
+			if opp >= 0 && d.KillerPID == opp {
+				l.KilledByOpp++
+			}
+		}
+		if opp >= 0 && d.VictimPID == opp && d.KillerPID == focus {
+			l.KilledOpp++
 		}
 		if d.KillerPID == focus {
 			l.Kills++
@@ -96,7 +130,56 @@ func buildLaning(m *parser.Match, byPID map[int][]parser.Sample, focus, opp int)
 			}
 		}
 	}
+	l.Heroes = laneHeroes(m, byPID, focus, opp, l.Lane, l.OppLane)
 	return l
+}
+
+// laneHeroes lists the heroes that laned on the focus's lane (allies) and on
+// the opponent's lane (enemies). Jungle / roam lanes only include the player itself.
+func laneHeroes(m *parser.Match, byPID map[int][]parser.Sample, focus, opp int, lane, oppLane string) []LaneHero {
+	out := []LaneHero{}
+	focusTeam := 0
+	for _, p := range m.Players {
+		if p.PlayerID == focus {
+			focusTeam = p.Team
+		}
+	}
+	kills, deaths := map[int]int{}, map[int]int{}
+	for _, d := range m.Deaths {
+		if d.T > laneTo {
+			continue
+		}
+		deaths[d.VictimPID]++
+		if d.KillerPID >= 0 {
+			kills[d.KillerPID]++
+		}
+	}
+	laned := func(pidLane, want string) bool {
+		return want != "" && want != "jungle" && want != "roam" && pidLane == want
+	}
+	for _, p := range m.Players {
+		if p.Team != parser.TeamRadiant && p.Team != parser.TeamDire {
+			continue
+		}
+		pl := DetectLane(byPID[p.PlayerID])
+		in := p.PlayerID == focus || p.PlayerID == opp
+		if !in && p.Team == focusTeam && laned(pl, lane) {
+			in = true
+		}
+		if !in && p.Team != focusTeam && opp >= 0 && laned(pl, oppLane) {
+			in = true
+		}
+		if !in {
+			continue
+		}
+		h := LaneHero{PlayerID: p.PlayerID, HeroName: p.HeroName, Team: p.Team, Lane: pl,
+			Kills: kills[p.PlayerID], Deaths: deaths[p.PlayerID]}
+		if s, ok := sampleAt(byPID[p.PlayerID], 600); ok {
+			h.LH, h.DN, h.NetWorth, h.XP, h.Level = s.LastHits, s.Denies, s.NetWorth, s.TotalXP, s.Level
+		}
+		out = append(out, h)
+	}
+	return out
 }
 
 // ---- gold ----

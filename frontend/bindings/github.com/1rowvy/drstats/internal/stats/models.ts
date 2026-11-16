@@ -212,6 +212,11 @@ export interface Dashboard {
     "extras": Extras;
 
     /**
+     * against the lane opponent
+     */
+    "lanes": LaneStats;
+
+    /**
      * Replays is how many of the filtered matches have a parsed replay
      * (replay-only blocks are computed over those).
      */
@@ -472,6 +477,17 @@ export interface Game {
      * OpenDota marks a match known only from the OpenDota history (no replay).
      */
     "opendota": boolean;
+
+    /**
+     * Lane opponent at 10:00 (nil when unknown) and the lane verdict.
+     */
+    "opp": LaneOpp | null;
+    "lane_score": number;
+
+    /**
+     * LaneWon / LaneEven / LaneLost, "" when unknown
+     */
+    "lane_result": string;
 }
 
 /**
@@ -619,6 +635,61 @@ export interface ItemTiming {
 }
 
 /**
+ * LaneHero is one hero of the lane at 10:00.
+ */
+export interface LaneHero {
+    "pid": number;
+    "hero_name": string;
+    "team": number;
+    "lane": string;
+    "lh": number;
+    "dn": number;
+    "nw": number;
+    "xp": number;
+    "level": number;
+
+    /**
+     * before 10:00
+     */
+    "kills": number;
+
+    /**
+     * before 10:00
+     */
+    "deaths": number;
+}
+
+/**
+ * LaneMatchup is the lane record against one opponent hero.
+ */
+export interface LaneMatchup {
+    "hero_name": string;
+    "games": number;
+    "won": number;
+    "lost": number;
+
+    /**
+     * average LaneScore
+     */
+    "avg_score": number;
+
+    /**
+     * average net worth difference at 10:00
+     */
+    "avg_nw": number;
+}
+
+/**
+ * LaneOpp is the lane opponent of a game with their values at 10:00.
+ */
+export interface LaneOpp {
+    "hero_name": string;
+    "nw10": number;
+    "xp10": number;
+    "lh10": number;
+}
+
+/**
  * LaneSnap compares the focused player with the lane opponent at a moment.
  */
 export interface LaneSnap {
@@ -644,6 +715,33 @@ export interface LaneSnapValues {
     "nw": number;
     "xp": number;
     "level": number;
+}
+
+/**
+ * LaneStats summarise lanes against the lane opponent over the filtered games.
+ */
+export interface LaneStats {
+    /**
+     * games with a known opponent
+     */
+    "games": number;
+
+    /**
+     * Game results after a won / even / lost lane (Key: won / even / lost).
+     */
+    "won": Bucket;
+    "even": Bucket;
+    "lost": Bucket;
+
+    /**
+     * AvgNW is the average net worth difference at 10:00.
+     */
+    "avg_nw": number;
+
+    /**
+     * Matchups by opponent hero, hardest first (lowest AvgScore).
+     */
+    "matchups": LaneMatchup[] | null;
 }
 
 /**
@@ -684,6 +782,29 @@ export interface Laning {
      * end of the laning window, seconds
      */
     "lane_ends": number;
+
+    /**
+     * Head to head with the lane opponent before 10:00.
+     * opponent deaths where focus got the kill
+     */
+    "killed_opp": number;
+
+    /**
+     * focus deaths where the opponent got the kill
+     */
+    "killed_by_opp": number;
+
+    /**
+     * Lane verdict at 10:00 (see LaneScore); Outcome is "" without an opponent sample.
+     */
+    "score": number;
+    "outcome": string;
+
+    /**
+     * Heroes is everyone who laned with the focus or the opponent (both
+     * sides), with their 10:00 values: the 2v2 / 1v1 picture of the lane.
+     */
+    "heroes": LaneHero[] | null;
 }
 
 /**
