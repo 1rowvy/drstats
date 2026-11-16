@@ -135,6 +135,14 @@ export interface Bucket {
 }
 
 /**
+ * CurStreak is the run of equal results ending at the latest match.
+ */
+export interface CurStreak {
+    "len": number;
+    "win": boolean;
+}
+
+/**
  * Dashboard is the aggregate view over the filtered matches.
  */
 export interface Dashboard {
@@ -270,6 +278,7 @@ export interface Extras {
      * earliest first purchase per item
      */
     "fastest": FastItemView[] | null;
+    "tilt": Tilt;
 }
 
 /**
@@ -925,6 +934,29 @@ export interface Streak {
      */
     "from": number;
     "to": number;
+}
+
+/**
+ * Tilt summarises how results depend on the previous game and on the
+ * position of a game inside a session (games with gaps < SessionGap).
+ */
+export interface Tilt {
+    /**
+     * Session buckets: key "1".."4" — 1st, 2nd, 3rd, 4th-and-later game of a session.
+     */
+    "session": Bucket[] | null;
+
+    /**
+     * Games right after a win / a loss inside the same session.
+     */
+    "after_win": Bucket;
+    "after_loss": Bucket;
+    "current": CurStreak;
+
+    /**
+     * Sessions is how many sessions the games split into.
+     */
+    "sessions": number;
 }
 
 /**

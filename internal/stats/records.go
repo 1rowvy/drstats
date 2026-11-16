@@ -44,6 +44,7 @@ type Extras struct {
 	Party   Bucket         `json:"party"`
 	Solo    Bucket         `json:"solo"`
 	Fastest []FastItemView `json:"fastest"` // earliest first purchase per item
+	Tilt    Tilt           `json:"tilt"`
 }
 
 // FastItemView is store.FastItem with the match context.
@@ -110,6 +111,7 @@ func buildExtras(games []Game, now time.Time) Extras {
 	}
 	finishBucket(&x.Party)
 	finishBucket(&x.Solo)
+	x.Tilt = buildTilt(games)
 	for _, k := range order {
 		x.Days = append(x.Days, *days[k])
 	}

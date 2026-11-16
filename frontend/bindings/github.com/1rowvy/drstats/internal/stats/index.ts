@@ -7,6 +7,7 @@ export type {
     Amount,
     Battle,
     Bucket,
+    CurStreak,
     Dashboard,
     DayBucket,
     DeathCtx,
@@ -36,6 +37,7 @@ export type {
     PlayerView,
     Record,
     Streak,
+    Tilt,
     TimeShare,
     TrendGame,
     Vision
