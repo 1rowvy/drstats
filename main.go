@@ -76,7 +76,9 @@ func main() {
 	// Autostart goes straight to the tray (or minimised when the tray is off).
 	autostart := slices.Contains(os.Args[1:], autostartFlag)
 	opts := application.WebviewWindowOptions{
-		Title:            "drstats",
+		Title: "drstats",
+		// The title bar is drawn by the frontend (drag area + window buttons).
+		Frameless:        true,
 		MinWidth:         minWidth,
 		MinHeight:        minHeight,
 		EnableFileDrop:   true,
@@ -92,11 +94,14 @@ func main() {
 	win = app.Window.NewWithOptions(opts)
 	setupTray(app, win, keeper, func() bool { return svc.settings().TrayOff }, trayIcon)
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
-		if autostart && svc.settings().TrayOff {
+		ensureOnScreen(app, win)
+		switch {
+		case autostart && svc.settings().TrayOff:
 			win.Show()
 			win.Minimise()
+		case !autostart:
+			keeper.restoreMaximised(win)
 		}
-		ensureOnScreen(app, win)
 	})
 	win.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
 		files := e.Context().DroppedFiles()

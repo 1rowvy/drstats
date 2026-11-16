@@ -35,6 +35,10 @@ type windowKeeper struct {
 	path string
 	mu   sync.Mutex
 	st   windowState
+	// pendingMax: the window was maximised last time and is maximised again
+	// the first time it is shown (Windows moves a window created maximised
+	// to its saved X/Y, breaking the maximised state).
+	pendingMax atomic.Bool
 }
 
 func newWindowKeeper(dir string) *windowKeeper {
@@ -57,15 +61,20 @@ func (k *windowKeeper) apply(o *application.WebviewWindowOptions) {
 		o.InitialPosition = application.WindowXY
 		o.X, o.Y = k.st.X, k.st.Y
 	}
-	if k.st.Maximised && o.StartState == application.WindowStateNormal {
-		o.StartState = application.WindowStateMaximised
+	k.pendingMax.Store(k.st.Maximised)
+}
+
+// restoreMaximised maximises a shown window that was maximised last time (once).
+func (k *windowKeeper) restoreMaximised(w *application.WebviewWindow) {
+	if k.pendingMax.Swap(false) {
+		w.Maximise()
 	}
 }
 
 // capture reads the current geometry of a visible window. A maximised or
 // minimised window keeps the last normal size and position.
 func (k *windowKeeper) capture(w *application.WebviewWindow) {
-	if !w.IsVisible() || w.IsMinimised() {
+	if !w.IsVisible() || w.IsMinimised() || k.pendingMax.Load() {
 		return
 	}
 	k.mu.Lock()
@@ -115,6 +124,7 @@ func setupTray(app *application.App, w *application.WebviewWindow, keeper *windo
 	show := func() {
 		w.UnMinimise()
 		w.Show()
+		keeper.restoreMaximised(w)
 		w.Focus()
 	}
 	quit := func() {

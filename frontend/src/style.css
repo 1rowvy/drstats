@@ -58,9 +58,19 @@ a { color: var(--accent); }
 /* ---- shell ---- */
 .shell { display: flex; flex-direction: column; height: 100%; }
 .topbar {
-  flex-shrink: 0; height: 58px; display: flex; align-items: center; gap: 22px; padding: 0 22px;
+  flex-shrink: 0; height: 58px; display: flex; align-items: center; gap: 22px; padding: 0 0 0 22px;
   border-bottom: 1px solid var(--line); background: var(--bg);
+  /* Custom title bar: empty space drags the frameless window, double click maximises. */
+  --wails-draggable: drag; user-select: none;
 }
+.topbar button, .topbar a, .topbar input, .topbar select { --wails-draggable: no-drag; }
+.win-ctl { display: flex; align-self: stretch; margin-left: 4px; }
+.win-ctl button {
+  width: 46px; height: 100%; display: grid; place-items: center; background: none; border: none; border-radius: 0;
+  color: var(--dim); padding: 0;
+}
+.win-ctl button:hover:not(:disabled) { background: var(--panel-2); color: var(--text); border: none; }
+.win-ctl button.close:hover:not(:disabled) { background: #c42b1c; color: #fff; }
 .logo { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 700; font-size: 16px; }
 .logo .icon { color: var(--accent); }
 .topnav { display: flex; gap: 4px; }

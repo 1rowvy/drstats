@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Events } from "@wailsio/runtime";
+import { WindowControls } from "./components/WindowControls";
 import { Api, AppEvents, DownloadProgress, MatchRow, ParseProgress, Progress, ReplayEvent, Settings } from "./api";
 import { Icon } from "./components/Icon";
 import { ToastCtx } from "./components/ui";
@@ -166,6 +167,7 @@ function Shell() {
               <Icon name="settings" size={17} />
             </button>
           </div>
+          <WindowControls />
         </header>
         <main className="content">
           <div className="page">
