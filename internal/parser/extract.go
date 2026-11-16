@@ -95,6 +95,7 @@ type extractor struct {
 	lastTickSampled uint32
 
 	raw          []rawEntry
+	smokes       []rawSmoke
 	buybacks     []tickPID
 	wardDeaths   []wardDeath
 	wards        []rawWard
@@ -410,6 +411,7 @@ func (x *extractor) finish() {
 	x.buildCombat(pidByHero)
 	x.buildWards(pidByHero, pidByHandle)
 	x.buildObjectives(pidByHero)
+	x.buildSmokes(pidByHero, end)
 
 	gt := func(tick uint32) float64 { return round2(x.clock.GameTime(tick)) }
 	for _, r := range x.runes {

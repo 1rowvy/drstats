@@ -214,3 +214,38 @@ func TestObjectivesAndHeroDamage(t *testing.T) {
 		}
 	}
 }
+
+func TestSmokes(t *testing.T) {
+	path := testReplay(t)
+	m, err := ParseFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Every use of the item smokes at least its user, and the buff lasts at
+	// most its 45 s duration (plus a little slack for late applies).
+	uses := 0
+	for _, c := range m.Casts {
+		if c.Ability != "item_smoke_of_deceit" {
+			continue
+		}
+		uses++
+		self := false
+		for _, s := range m.Smokes {
+			if s.UserPID == c.PlayerID && s.PlayerID == c.PlayerID && s.T >= c.T-0.1 && s.T <= c.T+0.1 {
+				self = true
+			}
+		}
+		if !self {
+			t.Errorf("smoke used by %d at %v: user not smoked", c.PlayerID, c.T)
+		}
+	}
+	if uses == 0 || len(m.Smokes) < uses {
+		t.Fatalf("uses %d, smoked heroes %d", uses, len(m.Smokes))
+	}
+	for _, s := range m.Smokes {
+		if d := s.End - s.T; d <= 0 || d > 48 {
+			t.Errorf("smoke %+v lasts %v", s, d)
+		}
+	}
+	t.Logf("%d smoke uses, %d smoked heroes", uses, len(m.Smokes))
+}

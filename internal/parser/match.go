@@ -4,7 +4,7 @@ import "strings"
 
 // Version of the extraction logic. Bump it whenever what Parse extracts (or how)
 // changes, so stored matches can be detected as stale and re-parsed.
-const Version = 3
+const Version = 4
 
 // SeriesStep is the sampling interval of the per-player time series, game seconds.
 const SeriesStep = 5.0
@@ -44,6 +44,8 @@ type Match struct {
 	Objectives []Objective    `json:"objectives"`
 	HeroDamage []DamageBucket `json:"hero_damage"`
 	Pauses     [][2]uint32    `json:"pauses"` // [from, to) replay ticks, for game time -> tick
+	// v4: heroes under Smoke of Deceit.
+	Smokes []Smoke `json:"smokes"`
 }
 
 // Player is a final scoreboard line.
@@ -231,6 +233,16 @@ type Objective struct {
 	Team      int     `json:"team"` // team that lost the building (0 for Roshan)
 	KillerPID int     `json:"killer"`
 	Killer    string  `json:"killer_name"`
+}
+
+// Smoke is one hero under Smoke of Deceit: from T (the smoke was used) to
+// End (the buff broke near an enemy or expired). Heroes smoked by the same
+// use share UserPID and T.
+type Smoke struct {
+	T        float64 `json:"t"`
+	End      float64 `json:"end"`
+	PlayerID int     `json:"pid"`
+	UserPID  int     `json:"user"` // hero that used the smoke, -1 if unknown
 }
 
 // DamageBucketStep is the time bucket of DamageBucket, game seconds.

@@ -41,6 +41,14 @@ func (x *extractor) inflictor(idx uint32) string {
 // extraction. Called for every combat log message.
 func (x *extractor) onCombatLog(m *dota.CMsgDOTACombatLogEntry) {
 	typ := m.GetType()
+	if (typ == dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_MODIFIER_ADD || typ == dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_MODIFIER_REMOVE) &&
+		m.GetIsTargetHero() && !m.GetIsTargetIllusion() && x.name(m.GetInflictorName()) == smokeModifier {
+		x.smokes = append(x.smokes, rawSmoke{
+			tick: x.p.Tick, add: typ == dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_MODIFIER_ADD,
+			user: x.name(m.GetAttackerName()), target: x.name(m.GetTargetName()),
+		})
+		return
+	}
 	switch typ {
 	case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_DAMAGE,
 		dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_HEAL,
@@ -426,4 +434,43 @@ func (x *extractor) buildWards(pidByHero map[string]int, pidByHandle map[uint64]
 		}
 		x.m.Wards = append(x.m.Wards, out)
 	}
+}
+
+// smokeModifier is the buff of a hero under Smoke of Deceit.
+const smokeModifier = "modifier_smoke_of_deceit"
+
+type rawSmoke struct {
+	tick         uint32
+	add          bool // applied; false = removed (broken or expired)
+	user, target string
+}
+
+// buildSmokes turns smoke buff add / remove pairs into per-hero intervals.
+// A buff still on at the end of the replay ends at endTick.
+func (x *extractor) buildSmokes(pidByHero map[string]int, endTick uint32) {
+	open := map[int]int{} // pid -> index in x.m.Smokes
+	for _, s := range x.smokes {
+		pid, ok := pidByHero[s.target]
+		if !ok {
+			continue
+		}
+		t := round2(x.clock.GameTime(s.tick))
+		i, on := open[pid]
+		switch {
+		case s.add && !on:
+			user, ok := pidByHero[s.user]
+			if !ok {
+				user = -1
+			}
+			open[pid] = len(x.m.Smokes)
+			x.m.Smokes = append(x.m.Smokes, Smoke{T: t, End: t, PlayerID: pid, UserPID: user})
+		case !s.add && on:
+			x.m.Smokes[i].End = t
+			delete(open, pid)
+		}
+	}
+	for _, i := range open {
+		x.m.Smokes[i].End = round2(x.clock.GameTime(endTick))
+	}
+	x.smokes = nil
 }
