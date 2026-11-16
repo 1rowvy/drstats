@@ -82,6 +82,9 @@ type MatchView struct {
 	// thrown / comeback swing, nil when the game had none.
 	Phases []PhaseStats `json:"phases"`
 	Swing  *SwingGame   `json:"swing"`
+	// Reasons: why the game was lost / won against the player's own games;
+	// nil with too few of them.
+	Reasons *MatchReasons `json:"reasons"`
 }
 
 // BuildMatchView loads a match and derives the view for the given focus:
@@ -128,12 +131,12 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 	}
 
 	clock := parser.NewClock(m.StartTick, m.Pauses)
-	v.DeathCtx = deathContext(players, deaths, m.Wards)
+	byPID := splitSeries(series)
+	v.DeathCtx = deathContext(players, deaths, m.Wards, byPID)
 	for i := range v.DeathCtx {
 		v.DeathCtx[i].Tick = clock.Tick(math.Max(deaths[i].T-8, -90))
 	}
 
-	byPID := splitSeries(series)
 	if v.Focus >= 0 {
 		v.Opponent = LaneOpponent(players, byPID, v.Focus)
 	}
@@ -190,6 +193,11 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 		if g, ok := Grades(games)[matchID]; ok {
 			v.Grade = &g
 		}
+		ex, err := loadExtras(st, me.AccountID, games, opt.IdleThreshold)
+		if err != nil {
+			return nil, err
+		}
+		v.Reasons = buildReasons(games, ex, matchID)
 	}
 	return v, nil
 }
@@ -338,34 +346,6 @@ func average(axis []float64, pids []int, line func(int) Line) Line {
 		if counts[i] > 0 {
 			v := math.Round(sums[i] / float64(counts[i]))
 			out[i] = &v
-		}
-	}
-	return out
-}
-
-// DeathCtx describes the surroundings of a death.
-type DeathCtx struct {
-	Region string `json:"region"` // map zone key, see Region
-	Vision bool   `json:"vision"` // an allied observer ward saw the spot
-	Tick   uint32 `json:"tick"`   // replay tick a few seconds before the death
-}
-
-// obsRadius is the observer ward vision radius (day), world units.
-const obsRadius = 1400.0
-
-func deathContext(players []parser.Player, deaths []parser.Death, wards []parser.Ward) []DeathCtx {
-	out := make([]DeathCtx, len(deaths))
-	for i, d := range deaths {
-		if !d.HasPos {
-			continue
-		}
-		out[i].Region = Region(d.X, d.Y)
-		team := teamOf(players, d.VictimPID)
-		for _, w := range wards {
-			if !w.Sentry && w.Team == team && w.T <= d.T && d.T <= w.End && math.Hypot(w.X-d.X, w.Y-d.Y) <= obsRadius {
-				out[i].Vision = true
-				break
-			}
 		}
 	}
 	return out

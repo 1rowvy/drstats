@@ -137,6 +137,40 @@ func TestMatchViewOnReplay(t *testing.T) {
 			t.Errorf("%s: battles %d, kills %d of %d", p.HeroName, len(v.Battles), kills, p.Kills)
 		}
 	}
+	// Stored-death classification matches the one of the match view.
+	for _, p := range m.Players {
+		if p.AccountID == 0 {
+			continue
+		}
+		scenes, err := st.DeathScenes(p.AccountID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v, _ := BuildMatchView(st, mid, 0, p.PlayerID, DefaultOptions)
+		var want []DeathCtx
+		for i, d := range v.Deaths {
+			if d.VictimPID == p.PlayerID {
+				c := v.DeathCtx[i]
+				c.Tick = 0
+				want = append(want, c)
+			}
+		}
+		got := classifyScenes(scenes)[mid]
+		if len(got) != len(want) {
+			t.Fatalf("%s: %d stored deaths, %d in view", p.HeroName, len(got), len(want))
+		}
+		avoid := 0
+		for i := range got {
+			if got[i].Ctx != want[i] {
+				t.Errorf("%s death %d: stored %+v, view %+v", p.HeroName, i, got[i].Ctx, want[i])
+			}
+			if got[i].Ctx.Avoidable {
+				avoid++
+			}
+		}
+		t.Logf("%-30s deaths %d, avoidable %d", p.HeroName, len(got), avoid)
+	}
+
 	v, _ := BuildMatchView(st, mid, 0, 0, DefaultOptions)
 	adv := v.Farm.Advantage
 	last := adv[len(adv)-1]

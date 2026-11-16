@@ -227,6 +227,11 @@ export interface Dashboard {
     "farm": FarmStats;
 
     /**
+     * avoidable deaths
+     */
+    "avoid": DeathStats;
+
+    /**
      * Replays is how many of the filtered matches have a parsed replay
      * (replay-only blocks are computed over those).
      */
@@ -268,6 +273,91 @@ export interface DeathCtx {
      * replay tick a few seconds before the death
      */
     "tick": number;
+
+    /**
+     * Allies alive within allyRadius; Enemies are the heroes credited with
+     * the kill (killing blow + assists).
+     */
+    "allies": number;
+    "enemies": number;
+    "alone": boolean;
+
+    /**
+     * on the enemy half, outside the river
+     */
+    "deep": boolean;
+
+    /**
+     * unspent gold right before the death, -1 unknown
+     */
+    "gold": number;
+
+    /**
+     * Avoidable: alone and either blind, deep in enemy land or caught by
+     * several heroes — a death map awareness or positioning would have saved.
+     */
+    "avoidable": boolean;
+}
+
+/**
+ * DeathStats is the dashboard card about avoidable deaths (replays only).
+ */
+export interface DeathStats {
+    "games": number;
+    "deaths": number;
+    "avoidable": number;
+
+    /**
+     * avoidable deaths per game
+     */
+    "per_game": number;
+
+    /**
+     * gold lost on avoidable deaths, per game
+     */
+    "gold_lost": number;
+
+    /**
+     * Why the avoidable ones were avoidable (a death can count in several).
+     * alone without vision
+     */
+    "blind": number;
+
+    /**
+     * alone on the enemy half
+     */
+    "deep": number;
+
+    /**
+     * alone against 2+ heroes
+     */
+    "outnumbered": number;
+
+    /**
+     * any death with ≥ deathRichGold unspent
+     */
+    "rich": number;
+
+    /**
+     * where the avoidable ones happen, count in Sec; most first
+     */
+    "zones": IdleZone[] | null;
+
+    /**
+     * Winrate of games with at most one avoidable death vs more.
+     */
+    "clean": Bucket;
+    "messy": Bucket;
+
+    /**
+     * avoidable per game, last 10 games
+     */
+    "recent": number;
+
+    /**
+     * avoidable per game, the games before
+     */
+    "before": number;
 }
 
 /**
@@ -641,6 +731,15 @@ export interface GoalProgress {
     "target": number;
 
     /**
+     * Winrate of your games that met / missed the target (nil when either
+     * side has too few games): why this goal matters.
+     */
+    "win_met": number | null;
+    "win_miss": number | null;
+    "n_met": number;
+    "n_miss": number;
+
+    /**
      * average since the start, nil without games
      */
     "current": number | null;
@@ -991,6 +1090,38 @@ export interface Laning {
 export type Line = (number | null)[] | null;
 
 /**
+ * MatchReasons explains a game against the player's own games.
+ */
+export interface MatchReasons {
+    "win": boolean;
+
+    /**
+     * reference games
+     */
+    "basis": number;
+
+    /**
+     * reference on the same hero
+     */
+    "on_hero": boolean;
+
+    /**
+     * RefWins: the reference is your wins (a lost game), else all games.
+     */
+    "ref_wins": boolean;
+
+    /**
+     * why lost / what won it, most important first
+     */
+    "main": Reason[] | null;
+
+    /**
+     * did well despite the loss / weak spots of a win
+     */
+    "other": Reason[] | null;
+}
+
+/**
  * MatchView is everything the match page needs.
  */
 export interface MatchView {
@@ -1054,6 +1185,12 @@ export interface MatchView {
      */
     "phases": PhaseStats[] | null;
     "swing": SwingGame | null;
+
+    /**
+     * Reasons: why the game was lost / won against the player's own games;
+     * nil with too few of them.
+     */
+    "reasons": MatchReasons | null;
 }
 
 /**
@@ -1179,6 +1316,15 @@ export interface PlanGoal {
      * halfway to your best games
      */
     "target": number;
+
+    /**
+     * Winrate of your games that met / missed the target (nil when either
+     * side has too few games): why this goal matters.
+     */
+    "win_met": number | null;
+    "win_miss": number | null;
+    "n_met": number;
+    "n_miss": number;
 }
 
 /**
@@ -1501,6 +1647,37 @@ export interface RankView {
      * ByPeriod is by week
      */
     "weekly": boolean;
+}
+
+/**
+ * Reason is one metric where the game stood out.
+ */
+export interface Reason {
+    "key": string;
+    "higher_better": boolean;
+
+    /**
+     * this game
+     */
+    "value": number;
+
+    /**
+     * median of the reference games
+     */
+    "ref": number;
+
+    /**
+     * gap in spreads, > 0 better than usual
+     */
+    "z": number;
+
+    /**
+     * Winrate of your games on the good / bad side of your usual value
+     * (nil when either side has too few games).
+     */
+    "win_good": number | null;
+    "win_bad": number | null;
+    "score": number;
 }
 
 /**

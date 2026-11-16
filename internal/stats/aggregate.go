@@ -179,6 +179,7 @@ type Dashboard struct {
 	Lanes     LaneStats          `json:"lanes"` // against the lane opponent
 	Flow      FlowStats          `json:"flow"`  // phases, thrown / comeback games, game length
 	Farm      FarmStats          `json:"farm"`  // farm efficiency and idle time
+	Avoid     DeathStats         `json:"avoid"` // avoidable deaths
 	// Replays is how many of the filtered matches have a parsed replay
 	// (replay-only blocks are computed over those).
 	Replays int `json:"replays"`
@@ -196,7 +197,8 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[in
 		Heroes: []HeroOption{}, Modes: []int{}, World: worldBounds(), Unknown: accountID == 0,
 		Lanes: LaneStats{Matchups: []LaneMatchup{}},
 		Flow:  FlowStats{Phases: []PhaseStats{}, Thrown: []SwingGame{}, Comebacks: []SwingGame{}, ByLength: []Bucket{}},
-		Farm:  FarmStats{Phases: []FarmPhase{}, Zones: []IdleZone{}}}
+		Farm:  FarmStats{Phases: []FarmPhase{}, Zones: []IdleZone{}},
+		Avoid: DeathStats{Zones: []IdleZone{}}}
 	all, err := loadGames(st, accountID)
 	if err != nil {
 		return nil, err
@@ -280,6 +282,11 @@ func BuildDashboard(st *store.Store, accountID uint32, f Filter, heroByID map[in
 		return nil, err
 	}
 	d.Farm = buildFarmStats(games, farmGames(games, series, opt.IdleThreshold), opt.IdleThreshold)
+	scenes, err := st.DeathScenes(accountID)
+	if err != nil {
+		return nil, err
+	}
+	d.Avoid = deathStats(games, classifyScenes(scenes))
 	if accountID != 0 {
 		fast, err := st.FastestItems(accountID)
 		if err != nil {

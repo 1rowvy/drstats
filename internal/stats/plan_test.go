@@ -16,7 +16,7 @@ func TestPlan(t *testing.T) {
 		games = append(games, Game{GameRow: store.GameRow{MatchID: int64(i + 1), EndTime: now.Unix() - int64(30-i)*3600,
 			Deaths: 2 + i%8, Kills: 5, Assists: 5, TeamKills: 30, LH10: &lh}})
 	}
-	p := NewPlan(games, nil, now)
+	p := NewPlan(games, buildExtrasMap(games, nil, nil), now)
 	if p == nil || len(p.Goals) == 0 || p.End-p.Start != PlanDays*86400 {
 		t.Fatalf("plan %+v", p)
 	}
@@ -40,7 +40,8 @@ func TestPlan(t *testing.T) {
 		{GameRow: store.GameRow{MatchID: 100, EndTime: now.Unix() + 3600, Deaths: 1, TeamKills: 10}},
 		{GameRow: store.GameRow{MatchID: 101, EndTime: now.Unix() + 7200, Deaths: 12, TeamKills: 10}},
 	}
-	v := PlanProgress(p, append(games, after...), nil, now.Add(3*time.Hour))
+	all := append(games, after...)
+	v := PlanProgress(p, all, buildExtrasMap(all, nil, nil), now.Add(3*time.Hour))
 	if v.Games != 2 || v.Expired {
 		t.Fatalf("view games %d expired %v", v.Games, v.Expired)
 	}
@@ -49,7 +50,34 @@ func TestPlan(t *testing.T) {
 			t.Errorf("deaths progress %+v", g)
 		}
 	}
-	if !PlanProgress(p, games, nil, now.AddDate(0, 0, 8)).Expired {
+	if !PlanProgress(p, games, buildExtrasMap(games, nil, nil), now.AddDate(0, 0, 8)).Expired {
 		t.Error("plan not expired after 8 days")
+	}
+}
+
+func TestPlanWinImpact(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	var games []Game
+	// Deaths decide the games (few deaths = win); avoidable deaths vary as
+	// much but are unrelated to the result.
+	avoid := map[int64]int{}
+	for i := 0; i < 40; i++ {
+		d := 2 + i%8
+		g := Game{GameRow: store.GameRow{MatchID: int64(i + 1), EndTime: now.Unix() - int64(40-i)*3600, Deaths: d}, Win: d <= 5}
+		avoid[g.MatchID] = (i / 8) % 4
+		games = append(games, g)
+	}
+	p := NewPlan(games, buildExtrasMap(games, nil, avoid), now)
+	if p == nil || len(p.Goals) == 0 {
+		t.Fatalf("plan %+v", p)
+	}
+	first := p.Goals[0]
+	if first.Key != "deaths" || first.WinMet == nil || first.WinMiss == nil || *first.WinMet <= *first.WinMiss {
+		t.Fatalf("first goal %+v (all %+v)", first, p.Goals)
+	}
+	for _, g := range p.Goals {
+		if g.Key == "avoid" && g.WinMet != nil && *g.WinMet-*g.WinMiss > 0.15 {
+			t.Errorf("unrelated metric shows impact: %+v", g)
+		}
 	}
 }

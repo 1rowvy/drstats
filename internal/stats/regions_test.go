@@ -36,7 +36,7 @@ func TestDeathContextVision(t *testing.T) {
 		{T: 100, VictimPID: 5, X: 0, Y: 0, HasPos: true}, // enemy ward does not count
 	}
 	wards := []parser.Ward{{T: 50, End: 200, Team: parser.TeamRadiant, X: 500, Y: 500}}
-	ctx := deathContext(players, deaths, wards)
+	ctx := deathContext(players, deaths, wards, nil)
 	if !ctx[0].Vision || ctx[1].Vision || ctx[2].Vision {
 		t.Fatalf("vision = %v %v %v, want true false false", ctx[0].Vision, ctx[1].Vision, ctx[2].Vision)
 	}
