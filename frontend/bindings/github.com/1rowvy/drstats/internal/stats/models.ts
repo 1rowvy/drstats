@@ -235,6 +235,7 @@ export interface Dashboard {
      * avoidable deaths
      */
     "avoid": DeathStats;
+    "smokes": SmokeStats;
 
     /**
      * Replays is how many of the filtered matches have a parsed replay
@@ -1241,6 +1242,11 @@ export interface MatchView {
      * nil with too few of them.
      */
     "reasons": MatchReasons | null;
+
+    /**
+     * Smokes of both teams (empty for replays parsed before smoke data).
+     */
+    "smokes": SmokeView[] | null;
 }
 
 /**
@@ -1748,6 +1754,121 @@ export interface Record {
      * no replay
      */
     "opendota": boolean;
+}
+
+/**
+ * SmokeStats summarise smokes over the filtered games with smoke data
+ * (replays parsed by parser v4+).
+ */
+export interface SmokeStats {
+    "games": number;
+
+    /**
+     * own-team smokes you were under
+     */
+    "smokes": number;
+    "per_game": number;
+
+    /**
+     * smokes you used yourself
+     */
+    "used": number;
+
+    /**
+     * Results of your smokes.
+     */
+    "kill": number;
+    "trade": number;
+    "lost": number;
+    "objective": number;
+    "nothing": number;
+
+    /**
+     * you got a kill / assist
+     */
+    "involved": number;
+
+    /**
+     * you died in it
+     */
+    "died": number;
+
+    /**
+     * Enemy smokes and your deaths in them (ganked by a smoke).
+     */
+    "enemy": number;
+    "caught": number;
+    "caught_games": number;
+
+    /**
+     * Winrate of games with at least one successful own smoke vs games with
+     * smokes but none successful (nil below 3 games on a side).
+     */
+    "win_good": number | null;
+    "win_bad": number | null;
+    "n_good": number;
+    "n_bad": number;
+}
+
+/**
+ * SmokeView is one use of Smoke of Deceit.
+ */
+export interface SmokeView {
+    "t": number;
+
+    /**
+     * the last buff of the group ended (broke or expired)
+     */
+    "end": number;
+
+    /**
+     * the first buff ended: the smoke was found or broken
+     */
+    "break": number;
+
+    /**
+     * replay tick a little before the use (demo_gototick)
+     */
+    "tick": number;
+    "team": number;
+
+    /**
+     * -1 if unknown
+     */
+    "user": number;
+    "members": number[] | null;
+
+    /**
+     * the focused player was under it
+     */
+    "mine": boolean;
+    "enemy": boolean;
+
+    /**
+     * Kills are enemy heroes killed by (or with an assist of) a smoked hero
+     * during the smoke, Lost smoked heroes that died (player ids, in order).
+     */
+    "kills": number[] | null;
+    "lost": number[] | null;
+
+    /**
+     * Involved: the focused player got a kill or an assist on Kills; Died:
+     * the focused player is among the dead (own or enemy smoke).
+     */
+    "involved": boolean;
+    "died": boolean;
+
+    /**
+     * npc name of a building / Roshan the smoking team took after it
+     */
+    "objective": string;
+    "result": string;
+
+    /**
+     * Region where the smoke broke (position of the first member whose buff
+     * ended); "" without a position.
+     */
+    "region": string;
 }
 
 /**

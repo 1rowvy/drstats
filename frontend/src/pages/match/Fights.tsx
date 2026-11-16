@@ -4,6 +4,7 @@ import { clock, duration, num, pct, plural, RADIANT, regionName, upperFirst } fr
 import { useNames } from "../../names";
 import { TickButton } from "../../components/ui";
 import { heroOf, useFocus } from "./common";
+import { MatchSmokes } from "../../components/Smokes";
 
 const fightName = (b: Battle) => upperFirst(regionName(b.region) || "Карта");
 
@@ -15,7 +16,7 @@ export function FightsTab({ view }: { view: MatchView }) {
     battles.forEach((b, i) => { if (Math.abs(b.gold_swing) > Math.abs(battles[best].gold_swing)) best = i; });
     return best;
   });
-  if (!battles.length) return <div className="card empty">Драк с твоим участием не нашлось.</div>;
+  if (!battles.length) return <div><div className="card empty">Драк с твоим участием не нашлось.</div><MatchSmokes view={view} /></div>;
   const won = battles.filter((b) => b.won).length;
   const total = battles.reduce((a, b) => a + b.gold_swing, 0);
   const dur = Math.max(60, view.meta.duration);
@@ -47,6 +48,7 @@ export function FightsTab({ view }: { view: MatchView }) {
         <div className="scale"><span>0:00</span><span>{clock(dur / 4)}</span><span>{clock(dur / 2)}</span><span>{clock((dur * 3) / 4)}</span><span>{clock(dur)}</span></div>
       </div>
       <FightPlaySummary view={view} battles={battles} onSelect={setSel} />
+      <MatchSmokes view={view} />
       <div className="grid-side" style={{ gridTemplateColumns: "280px 1fr", marginTop: 14 }}>
         <div className="fight-list" style={{ maxHeight: 820, overflow: "auto", paddingRight: 2 }}>
           {battles.map((f, i) => (

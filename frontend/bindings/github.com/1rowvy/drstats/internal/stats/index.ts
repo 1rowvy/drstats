@@ -58,6 +58,8 @@ export type {
     RankView,
     Reason,
     Record,
+    SmokeStats,
+    SmokeView,
     Streak,
     SwingGame,
     Tilt,
