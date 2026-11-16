@@ -912,6 +912,13 @@ export interface MatchView {
      * Grade of the focused player's game; nil without enough own matches.
      */
     "grade": Grade | null;
+
+    /**
+     * Phases of this game for the focused player (lane / mid / late) and the
+     * thrown / comeback swing, nil when the game had none.
+     */
+    "phases": PhaseStats[] | null;
+    "swing": SwingGame | null;
 }
 
 /**

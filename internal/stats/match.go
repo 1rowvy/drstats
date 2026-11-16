@@ -78,6 +78,10 @@ type MatchView struct {
 	Battles    []Battle        `json:"battles"` // fights the focused player took part in
 	// Grade of the focused player's game; nil without enough own matches.
 	Grade *Grade `json:"grade"`
+	// Phases of this game for the focused player (lane / mid / late) and the
+	// thrown / comeback swing, nil when the game had none.
+	Phases []PhaseStats `json:"phases"`
+	Swing  *SwingGame   `json:"swing"`
 }
 
 // BuildMatchView loads a match and derives the view for the given focus:
@@ -173,6 +177,11 @@ func BuildMatchView(st *store.Store, matchID int64, accountID uint32, focusPID i
 	v.Abilities = buildAbilities(m, v.Focus, opt)
 	v.Vision = buildVision(m, me, ss, v.Laning.Lane)
 	v.Battles = buildBattles(m, players, byPID, v.Focus, clock)
+	flow := matchFlow(players, ss, deaths, v.Farm, me)
+	v.Phases = GamePhases(flow, meta.Duration)
+	g := Game{GameRow: store.GameRow{MatchID: matchID, EndTime: meta.EndTime, Duration: meta.Duration,
+		HeroName: me.HeroName, TotalGold: me.TotalGold}, Win: me.Team == meta.Winner}
+	v.Swing = gameSwing(flow, &g)
 	if me.AccountID != 0 {
 		games, err := loadGames(st, me.AccountID)
 		if err != nil {

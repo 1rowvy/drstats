@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/1rowvy/drstats/internal/parser"
 	"github.com/1rowvy/drstats/internal/store"
 )
 
@@ -137,6 +138,112 @@ func window(f *store.GameFlow, from, to float64) (deaths, credit, teamKills int,
 	return deaths, credit, teamKills, gpm, true
 }
 
+// phaseGame are one game's values in one phase.
+type phaseGame struct {
+	ok                       bool
+	gpm, xpm, lhpm, deaths10 float64
+	kp                       float64 // -1 when the team got no kills
+	leadDelta                int
+}
+
+var phaseKeys = []string{"lane", "mid", "late"}
+var phaseBounds = [][2]float64{{0, PhaseMidFrom}, {PhaseMidFrom, PhaseLateFrom}, {PhaseLateFrom, math.Inf(1)}}
+
+// gamePhases splits one game (ending at end, game seconds) into phases.
+func gamePhases(f *store.GameFlow, end float64) []phaseGame {
+	out := make([]phaseGame, len(phaseBounds))
+	for k, b := range phaseBounds {
+		from, to := b[0], math.Min(b[1], end)
+		if to-from < PhaseMinLen {
+			continue
+		}
+		deaths, credit, teamKills, gpm, ok := window(f, from, to)
+		if !ok {
+			continue
+		}
+		a, _ := sampleBefore(f.Samples, from)
+		z, _ := sampleBefore(f.Samples, to)
+		mins := (z.T - a.T) / 60
+		pg := phaseGame{ok: true, gpm: gpm, kp: -1,
+			xpm:      float64(z.TotalXP-a.TotalXP) / mins,
+			lhpm:     float64(z.LastHits-a.LastHits) / mins,
+			deaths10: float64(deaths) / mins * 10}
+		if teamKills > 0 {
+			pg.kp = float64(credit) / float64(teamKills)
+		}
+		l0, _ := leadAt(f.Lead, from)
+		l1, _ := leadAt(f.Lead, to)
+		pg.leadDelta = l1 - l0
+		out[k] = pg
+	}
+	return out
+}
+
+// GamePhases are the phases of a single game (Games is 1 for a phase the
+// game reached, KP is -1 when the team got no kills in it).
+func GamePhases(f *store.GameFlow, end float64) []PhaseStats {
+	out := []PhaseStats{}
+	for k, pg := range gamePhases(f, end) {
+		ps := PhaseStats{Key: phaseKeys[k]}
+		if pg.ok {
+			ps.Games = 1
+			ps.GPM, ps.XPM, ps.LHPM, ps.Deaths10, ps.KP, ps.LeadDelta = pg.gpm, pg.xpm, pg.lhpm, pg.deaths10, pg.kp, float64(pg.leadDelta)
+			if pg.leadDelta > 0 {
+				ps.Gained = 1
+			}
+		}
+		out = append(out, ps)
+	}
+	return out
+}
+
+// gameSwing returns the thrown (lost after leading by ThrowLead+) or
+// comeback (won after trailing by ThrowLead+) part of a game, nil if neither.
+func gameSwing(f *store.GameFlow, g *Game) *SwingGame {
+	if len(f.Lead) == 0 {
+		return nil
+	}
+	maxI, minI := 0, 0
+	for j, lp := range f.Lead {
+		if lp.Lead > f.Lead[maxI].Lead {
+			maxI = j
+		}
+		if lp.Lead < f.Lead[minI].Lead {
+			minI = j
+		}
+	}
+	switch {
+	case !g.Win && f.Lead[maxI].Lead >= ThrowLead:
+		return swingFrom(f, g, maxI, 1)
+	case g.Win && f.Lead[minI].Lead <= -ThrowLead:
+		return swingFrom(f, g, minI, -1)
+	}
+	return nil
+}
+
+func swingFrom(f *store.GameFlow, g *Game, peakI, sign int) *SwingGame {
+	peak := f.Lead[peakI]
+	sg := &SwingGame{MatchID: g.MatchID, HeroName: g.HeroName, EndTime: g.EndTime, Win: g.Win,
+		Peak: peak.Lead * sign, PeakT: peak.T, FlipT: -1, KP: -1}
+	if gg, ok := perMin(g.TotalGold, g); ok {
+		sg.GameGPM = gg
+	}
+	to := g.Duration
+	for _, lp := range f.Lead[peakI:] {
+		if lp.Lead*sign <= 0 {
+			sg.FlipT, to = lp.T, lp.T
+			break
+		}
+	}
+	if d, c, tk, gpm, ok := window(f, peak.T, to); ok {
+		sg.Deaths, sg.GPM = d, gpm
+		if tk > 0 {
+			sg.KP = float64(c) / float64(tk)
+		}
+	}
+	return sg
+}
+
 func buildFlow(games []Game, flows map[int64]*store.GameFlow) FlowStats {
 	fs := FlowStats{Phases: []PhaseStats{}, Thrown: []SwingGame{}, Comebacks: []SwingGame{},
 		Ahead: Bucket{Key: "ahead"}, Behind: Bucket{Key: "behind"}, ByLength: lengthBuckets(games)}
@@ -145,8 +252,10 @@ func buildFlow(games []Game, flows map[int64]*store.GameFlow) FlowStats {
 		kpN               int
 		winG, winL, lostN int
 	}
-	phases := []*acc{{PhaseStats: PhaseStats{Key: "lane"}}, {PhaseStats: PhaseStats{Key: "mid"}}, {PhaseStats: PhaseStats{Key: "late"}}}
-	bounds := [][2]float64{{0, PhaseMidFrom}, {PhaseMidFrom, PhaseLateFrom}, {PhaseLateFrom, math.Inf(1)}}
+	phases := make([]*acc, len(phaseKeys))
+	for k, key := range phaseKeys {
+		phases[k] = &acc{PhaseStats: PhaseStats{Key: key}}
+	}
 	var throwDeaths, throwKP float64
 	var throwKPN int
 	var thrown, comebacks []SwingGame
@@ -157,33 +266,22 @@ func buildFlow(games []Game, flows map[int64]*store.GameFlow) FlowStats {
 			continue
 		}
 		fs.Games++
-		end := g.Duration
-		for k, b := range bounds {
-			from, to := b[0], math.Min(b[1], end)
-			if to-from < PhaseMinLen {
+		for k, pg := range gamePhases(f, g.Duration) {
+			if !pg.ok {
 				continue
 			}
-			deaths, credit, teamKills, gpm, ok := window(f, from, to)
-			if !ok {
-				continue
-			}
-			a, _ := sampleBefore(f.Samples, from)
-			z, _ := sampleBefore(f.Samples, to)
-			mins := (z.T - a.T) / 60
 			p := phases[k]
 			p.Games++
-			p.GPM += gpm
-			p.XPM += float64(z.TotalXP-a.TotalXP) / mins
-			p.LHPM += float64(z.LastHits-a.LastHits) / mins
-			p.Deaths10 += float64(deaths) / mins * 10
-			if teamKills > 0 {
-				p.KP += float64(credit) / float64(teamKills)
+			p.GPM += pg.gpm
+			p.XPM += pg.xpm
+			p.LHPM += pg.lhpm
+			p.Deaths10 += pg.deaths10
+			if pg.kp >= 0 {
+				p.KP += pg.kp
 				p.kpN++
 			}
-			l0, _ := leadAt(f.Lead, from)
-			l1, _ := leadAt(f.Lead, to)
-			p.LeadDelta += float64(l1 - l0)
-			if l1 > l0 {
+			p.LeadDelta += float64(pg.leadDelta)
+			if pg.leadDelta > 0 {
 				p.Gained++
 				if g.Win {
 					p.winG++
@@ -195,55 +293,27 @@ func buildFlow(games []Game, flows map[int64]*store.GameFlow) FlowStats {
 				}
 			}
 		}
-
-		// Swings: biggest lead / deficit and what happened after.
-		maxI, minI := 0, 0
-		for j, lp := range f.Lead {
-			if lp.Lead > f.Lead[maxI].Lead {
-				maxI = j
-			}
-			if lp.Lead < f.Lead[minI].Lead {
-				minI = j
-			}
+		maxLead, minLead := f.Lead[0].Lead, f.Lead[0].Lead
+		for _, lp := range f.Lead {
+			maxLead = max(maxLead, lp.Lead)
+			minLead = min(minLead, lp.Lead)
 		}
-		swing := func(peakI int, sign int) SwingGame {
-			peak := f.Lead[peakI]
-			sg := SwingGame{MatchID: g.MatchID, HeroName: g.HeroName, EndTime: g.EndTime, Win: g.Win,
-				Peak: peak.Lead * sign, PeakT: peak.T, FlipT: -1, KP: -1}
-			if gg, ok := perMin(g.TotalGold, g); ok {
-				sg.GameGPM = gg
-			}
-			to := end
-			for _, lp := range f.Lead[peakI:] {
-				if lp.Lead*sign <= 0 {
-					sg.FlipT, to = lp.T, lp.T
-					break
-				}
-			}
-			if d, c, tk, gpm, ok := window(f, peak.T, to); ok {
-				sg.Deaths, sg.GPM = d, gpm
-				if tk > 0 {
-					sg.KP = float64(c) / float64(tk)
-				}
-			}
-			return sg
-		}
-		if f.Lead[maxI].Lead >= ThrowLead {
+		if maxLead >= ThrowLead {
 			addBucket(&fs.Ahead, g)
-			if !g.Win {
-				sg := swing(maxI, 1)
-				thrown = append(thrown, sg)
+		}
+		if minLead <= -ThrowLead {
+			addBucket(&fs.Behind, g)
+		}
+		if sg := gameSwing(f, g); sg != nil {
+			if sg.Win {
+				comebacks = append(comebacks, *sg)
+			} else {
+				thrown = append(thrown, *sg)
 				throwDeaths += float64(sg.Deaths)
 				if sg.KP >= 0 {
 					throwKP += sg.KP
 					throwKPN++
 				}
-			}
-		}
-		if f.Lead[minI].Lead <= -ThrowLead {
-			addBucket(&fs.Behind, g)
-			if g.Win {
-				comebacks = append(comebacks, swing(minI, -1))
 			}
 		}
 	}
@@ -288,4 +358,41 @@ func buildFlow(games []Game, flows map[int64]*store.GameFlow) FlowStats {
 	fs.Thrown = newest(thrown)
 	fs.Comebacks = newest(comebacks)
 	return fs
+}
+
+// matchFlow builds the GameFlow of one loaded match for the focused player:
+// samples every minute, the team lead from the advantage line, all deaths.
+func matchFlow(players []parser.Player, ss []parser.Sample, deaths []parser.Death, farm Farm, me parser.Player) *store.GameFlow {
+	f := &store.GameFlow{}
+	for _, s := range ss {
+		if s.T >= 0 && math.Mod(s.T, 60) == 0 {
+			f.Samples = append(f.Samples, store.FlowSample{T: s.T, TotalGold: s.TotalGold, TotalXP: s.TotalXP, LastHits: s.LastHits})
+		}
+	}
+	sign := 1
+	if me.Team == parser.TeamDire {
+		sign = -1
+	}
+	for i, t := range farm.T {
+		if t >= 0 && math.Mod(t, 60) == 0 && i < len(farm.Advantage) && farm.Advantage[i] != nil {
+			f.Lead = append(f.Lead, store.LeadPoint{T: t, Lead: int(*farm.Advantage[i]) * sign})
+		}
+	}
+	team := map[int]int{}
+	for _, p := range players {
+		team[p.PlayerID] = p.Team
+	}
+	for _, d := range deaths {
+		fd := store.FlowDeath{T: d.T, Mine: d.VictimPID == me.PlayerID, Ally: team[d.VictimPID] == me.Team,
+			Credit: d.KillerPID == me.PlayerID}
+		if !fd.Ally {
+			for _, a := range d.Assists {
+				if a == me.PlayerID {
+					fd.Credit = true
+				}
+			}
+		}
+		f.Deaths = append(f.Deaths, fd)
+	}
+	return f
 }
