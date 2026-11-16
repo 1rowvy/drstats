@@ -217,6 +217,11 @@ func (l *Library) work(id int64) {
 	if err := l.st.SetStatus(id, store.StatusParsing, ""); err != nil {
 		slog.Error("set status", "replay", id, "err", err)
 	}
+	// The file may be gone by now (a partial demo Dota deleted): forget it.
+	if _, err := os.Stat(r.Path); errors.Is(err, fs.ErrNotExist) && l.forget(id) {
+		l.emitProgress()
+		return
+	}
 	l.emit(EventReplay, ReplayEvent{ReplayID: id, Status: store.StatusParsing})
 	l.emitProgress()
 
@@ -330,14 +335,58 @@ func (l *Library) Scan(dir string) (int, error) {
 	if dir == "" {
 		return 0, nil
 	}
+	l.PruneMissing()
 	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
 		return 0, nil
 	}
-	return l.Import([]string{dir})
+	// Files still being written (a game in progress) are left for the watcher.
+	return l.importPaths([]string{dir}, WatchSettle)
 }
 
-// WatchSettle is how old a replay file must be before the watcher picks it up.
-const WatchSettle = 15 * time.Second
+// WatchSettle is how long a replay file must stay unchanged before the
+// watcher picks it up: Dota writes partial "auto-…-start-…" demos during a
+// game and deletes them afterwards.
+const WatchSettle = time.Minute
+
+// StatusRemoved is the ReplayEvent status of a replay forgotten because its
+// file is gone before it was parsed.
+const StatusRemoved = "removed"
+
+// forget drops a replay that has no parsed match. Parsed matches stay even
+// when the file is gone (their stats live in the database).
+func (l *Library) forget(id int64) bool {
+	has, err := l.st.HasMatch(id)
+	if err != nil || has {
+		return false
+	}
+	if err := l.st.DeleteReplay(id); err != nil {
+		slog.Warn("forget replay", "replay", id, "err", err)
+		return false
+	}
+	l.emit(EventReplay, ReplayEvent{ReplayID: id, Status: StatusRemoved})
+	return true
+}
+
+// PruneMissing forgets pending / failed replays whose file no longer exists.
+// Returns how many were removed.
+func (l *Library) PruneMissing() int {
+	rs, err := l.st.UnparsedReplays()
+	if err != nil {
+		slog.Warn("list unparsed replays", "err", err)
+		return 0
+	}
+	n := 0
+	for _, r := range rs {
+		if _, err := os.Stat(r.Path); errors.Is(err, fs.ErrNotExist) && l.forget(r.ID) {
+			n++
+		}
+	}
+	if n > 0 {
+		slog.Info("forgot replays whose file is gone", "count", n)
+		l.emitProgress()
+	}
+	return n
+}
 
 // Watch rescans the replay folder every interval while enabled() is true,
 // queueing replays that appeared since. It returns when ctx is done.
@@ -350,6 +399,7 @@ func (l *Library) Watch(ctx context.Context, interval time.Duration, dir func() 
 			return
 		case <-t.C:
 		}
+		l.PruneMissing()
 		d := dir()
 		if !enabled() || d == "" {
 			continue

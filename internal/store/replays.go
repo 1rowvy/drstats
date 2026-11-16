@@ -168,3 +168,37 @@ func (s *Store) StaleCount(version int) (int, error) {
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM replays WHERE status = 'done' AND pruned_at = 0 AND parser_version < ?`, version).Scan(&n)
 	return n, err
 }
+
+// UnparsedReplay is a queued or failed replay with no parsed match.
+type UnparsedReplay struct {
+	ID   int64
+	Path string
+}
+
+// UnparsedReplays lists pending / failed replays that have no parsed match
+// (a failed re-parse of a parsed replay keeps its match and is not listed).
+func (s *Store) UnparsedReplays() ([]UnparsedReplay, error) {
+	rows, err := s.db.Query(`SELECT r.id, r.path FROM replays r
+		WHERE r.status IN ('pending', 'failed')
+		  AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.replay_id = r.id)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []UnparsedReplay
+	for rows.Next() {
+		var r UnparsedReplay
+		if err := rows.Scan(&r.ID, &r.Path); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// HasMatch reports whether a replay has a parsed match.
+func (s *Store) HasMatch(replayID int64) (bool, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM matches WHERE replay_id = ?`, replayID).Scan(&n)
+	return n > 0, err
+}

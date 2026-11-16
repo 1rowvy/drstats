@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/1rowvy/drstats/internal/parser"
 	"github.com/1rowvy/drstats/internal/store"
@@ -21,9 +22,13 @@ func TestImportAndParse(t *testing.T) {
 
 	replays := filepath.Join(dir, "replays")
 	os.MkdirAll(filepath.Join(replays, "sub"), 0o755)
+	old := time.Now().Add(-2 * WatchSettle) // settled: not being written any more
 	for _, n := range []string{"1.dem", "sub/2.dem", "bad.dem", "notes.txt"} {
 		os.WriteFile(filepath.Join(replays, n), []byte("x"), 0o644)
+		os.Chtimes(filepath.Join(replays, n), old, old)
 	}
+	// A demo Dota is still writing is not picked up by a scan.
+	os.WriteFile(filepath.Join(replays, "auto-live.dem"), []byte("x"), 0o644)
 
 	var mu sync.Mutex
 	events := map[string]int{}
@@ -89,5 +94,18 @@ func TestImportAndParse(t *testing.T) {
 	l.Wait()
 	if p := l.Progress(); p.Done != 2 || p.Failed != 1 || p.Stale != 0 {
 		t.Errorf("after reparse: %+v", p)
+	}
+
+	// Files gone: the failed (never parsed) replay is forgotten, parsed ones stay.
+	os.Remove(filepath.Join(replays, "bad.dem"))
+	os.Remove(filepath.Join(replays, "1.dem"))
+	if n := l.PruneMissing(); n != 1 {
+		t.Errorf("prune missing: %d", n)
+	}
+	if p := l.Progress(); p.Done != 2 || p.Failed != 0 {
+		t.Errorf("after prune: %+v", p)
+	}
+	if events[StatusRemoved] != 1 {
+		t.Errorf("removed events %v", events)
 	}
 }
